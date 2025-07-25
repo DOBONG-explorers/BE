@@ -1,32 +1,37 @@
 package com.dobongzip.dobong.global.response;
 
-import lombok.AllArgsConstructor;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Getter;
+import org.springframework.http.HttpStatus;
 
 @Getter
-@AllArgsConstructor
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class CommonResponse<T> {
-    private boolean success;
-    private T data;
-    private Status status;
 
-    public static <T> CommonResponse<T> onSuccess(StatusCode statusCode, T data) {
-        return new CommonResponse<>(true, data, new Status(statusCode));
+    private final boolean success;
+    private final int httpStatus;
+    private final String message;
+    private final T data;
+
+    private CommonResponse(boolean success, int httpStatus, String message, T data) {
+        this.success = success;
+        this.httpStatus = httpStatus;
+        this.message = message;
+        this.data = data;
     }
 
-    public static <T> CommonResponse<T> onFailure(StatusCode statusCode) {
-        return new CommonResponse<>(false, null, new Status(statusCode));
+    // 성공 + 데이터 포함
+    public static <T> CommonResponse<T> onSuccess(T data) {
+        return new CommonResponse<>(true, HttpStatus.OK.value(), "요청이 성공적으로 처리되었습니다.", data);
     }
 
-    @Getter
-    @AllArgsConstructor
-    public static class Status {
-        private String code;
-        private String message;
+    // 성공 + 데이터 없음
+    public static CommonResponse<Void> onSuccess() {
+        return new CommonResponse<>(true, HttpStatus.OK.value(), "요청이 성공적으로 처리되었습니다.", null);
+    }
 
-        public Status(StatusCode statusCode) {
-            this.code = statusCode.getCode();
-            this.message = statusCode.getDescription();
-        }
+    // 실패 응답
+    public static CommonResponse<Void> onFailure(StatusCode statusCode) {
+        return new CommonResponse<>(false, statusCode.getHttpStatus().value(), statusCode.getDescription(), null);
     }
 }
