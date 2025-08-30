@@ -11,11 +11,12 @@ public enum StatusCode {
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "AUTH404", "존재하지 않는 사용자입니다."),
     PROFILE_NOT_COMPLETED(HttpStatus.OK, "AUTH2001", "프로필 정보가 아직 입력되지 않았습니다."),
     INVALID_REQUEST(HttpStatus.BAD_REQUEST, "COMMON4001", "잘못된 요청입니다."),
+
     // 유저를 이메일로 찾을 수 없을 때
     USER_NOT_FOUND_BY_EMAIL(HttpStatus.BAD_REQUEST, "USER4004", "해당 이메일로 가입된 사용자가 없습니다."),
     // 소셜 로그인 계정은 비밀번호 변경/설정 불가
     NOT_ALLOWED_FOR_SOCIAL_LOGIN(HttpStatus.FORBIDDEN, "USER4031", "소셜 로그인 계정은 비밀번호를 설정할 수 없습니다."),
-
+    EMAIL_NOT_PROVIDED(HttpStatus.UNAUTHORIZED, "SOCIAL4011", "소셜 로그인 시 이메일 제공에 동의해야 합니다."),
     //회원정보 관리
     INVALID_CURRENT_PASSWORD(HttpStatus.BAD_REQUEST, "AUTH4001", "현재 비밀번호가 일치하지 않습니다."),
     PASSWORD_CONFIRM_NOT_MATCH(HttpStatus.BAD_REQUEST, "AUTH4002", "새 비밀번호 확인이 일치하지 않습니다."),
