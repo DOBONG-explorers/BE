@@ -6,6 +6,7 @@ import com.dobongzip.dobong.global.exception.BusinessException;
 import com.dobongzip.dobong.global.response.CommonResponse;
 import com.dobongzip.dobong.global.security.dto.auth.request.AppLoginRequestDto;
 import com.dobongzip.dobong.global.security.dto.auth.request.AppSignupRequestDto;
+import com.dobongzip.dobong.global.security.dto.auth.request.PasswordResetRequestDto;
 import com.dobongzip.dobong.global.security.dto.auth.request.ProfileRequestDto;
 import com.dobongzip.dobong.global.security.dto.auth.response.LoginResponseDto;
 import com.dobongzip.dobong.global.security.enums.LoginType;
@@ -76,5 +77,11 @@ public class AuthController {
         return ResponseEntity.ok(CommonResponse.onSuccess("프로필 등록 완료"));
     }
 
+    @Operation(summary = "앱 비밀번호 찾기", description = "이메일로 사용자를 찾고 비밀번호를 재설정합니다.")
+    @PostMapping("/password/reset")
+    public ResponseEntity<CommonResponse<String>> resetPassword(@RequestBody PasswordResetRequestDto dto) {
+        authService.resetPassword(dto);
+        return ResponseEntity.ok(CommonResponse.onSuccess("비밀번호가 재설정되었습니다."));
+    }
 
 }

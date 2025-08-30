@@ -10,4 +10,6 @@ public interface UserRepository extends JpaRepository<User, Long> {
     boolean existsByEmailAndLoginType(String email, LoginType loginType);
     Optional<User> findByEmailAndLoginType(String email, LoginType loginType);
 
+    // 👉 비번 재설정용
+    Optional<User> findByEmail(String email);
 }

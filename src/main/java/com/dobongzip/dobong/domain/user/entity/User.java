@@ -54,4 +54,19 @@ public class User {
         this.profileCompleted = true;
     }
 
+
+    public void updatePassword(String encodedPassword) {
+        this.password = encodedPassword;
+    }
+    public void setNickname(String nickname) {
+        this.nickname = nickname;
+    }
+
+    public void setBirth(String birth) {
+        this.birth = birth;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
+    }
 }
