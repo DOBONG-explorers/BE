@@ -7,6 +7,6 @@ import lombok.Setter;
 @Getter
 @Setter
 @NoArgsConstructor
-public class KakaoAuthRequestDto {
+public class OIDCRequestDto {
     private String idToken;
 }
