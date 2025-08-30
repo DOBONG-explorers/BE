@@ -24,6 +24,7 @@ public class AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
+    private final KakaoOidcService kakaoOidcService;
 
 
     // 일반 로그인
@@ -100,5 +101,28 @@ public class AuthService {
     }
 
 
+    /** 카카오 OIDC id_token 로그인 (자동 가입 포함) */
+    @Transactional
+    public LoginResponseDto loginWithKakaoIdToken(String idToken) {
+        var claims = kakaoOidcService.verify(idToken);
 
+        // 이메일이 필수 (User.email unique이기 때문)
+        if (claims.email() == null || claims.email().isBlank()) {
+            throw new BusinessException(StatusCode.EMAIL_NOT_PROVIDED);
+        }
+
+        // 이미 존재? -> 그대로 사용 (loginType은 이후 프로필에서 설정/혹은 여기서 설정)
+        User user = userRepository.findByEmail(claims.email())
+                .orElseGet(() -> {
+                    // 신규 생성: email만으로 생성하고, loginType=KAKAO로 설정
+                    User newbie = User.builder()
+                            .email(claims.email())
+                            .loginType(LoginType.KAKAO)
+                            .profileCompleted(false)
+                            .build();
+                    return userRepository.save(newbie);
+                });
+        String token = jwtUtil.createAccessToken(user.getEmail(), LoginType.KAKAO.name());
+        return new LoginResponseDto(token, user.isProfileCompleted(), user.getName(), user.getNickname(), LoginType.KAKAO);
+    }
 }

@@ -14,6 +14,38 @@ spring:
       expiration: ${JWT_EXPIRATION}
     secret: ${JWT_SECRET_KEY}
 
+  seoul:
+    openapi:
+      key: ${DOBONG_EVENT}
+    api:
+      base-url: ${URL_DOBONG_EVENT}
+
+  dobong:
+    api:
+      base-url: ${DOBONG_HERI}
+      api-key: ${API_KEY}
+      cont-code: ${CONT_CODE}
+
+
+  kakao:
+    rest-key: ${KAKAO_REST_KEY}
+
+
+
+
+kakao:
+  rest-api-key: ${KAKAO_AUTH_API_KEY}       # 카카오 REST API Key (aud 검증용)
+  oidc:
+    issuer: https://kauth.kakao.com
+    jwks-uri: https://kauth.kakao.com/.well-known/jwks.json
+
+google:
+
+  client-id: ${GOOGLE_WEB_CLIENT_ID}
+  oidc:
+    issuer: https://accounts.google.com
+    jwks-uri: https://www.googleapis.com/oauth2/v3/certs
+
 server:
   port: 8080
 

@@ -4,10 +4,7 @@ import com.dobongzip.dobong.global.response.StatusCode;
 import com.dobongzip.dobong.domain.user.entity.User;
 import com.dobongzip.dobong.global.exception.BusinessException;
 import com.dobongzip.dobong.global.response.CommonResponse;
-import com.dobongzip.dobong.global.security.dto.auth.request.AppLoginRequestDto;
-import com.dobongzip.dobong.global.security.dto.auth.request.AppSignupRequestDto;
-import com.dobongzip.dobong.global.security.dto.auth.request.PasswordResetRequestDto;
-import com.dobongzip.dobong.global.security.dto.auth.request.ProfileRequestDto;
+import com.dobongzip.dobong.global.security.dto.auth.request.*;
 import com.dobongzip.dobong.global.security.dto.auth.response.LoginResponseDto;
 import com.dobongzip.dobong.global.security.enums.LoginType;
 import com.dobongzip.dobong.global.security.jwt.AuthenticatedProvider;
@@ -51,6 +48,46 @@ public class AuthController {
         return ResponseEntity.ok(CommonResponse.onSuccess(response));
     }
 
+    @Operation(
+            summary = "카카오 로그인 (OIDC)",
+            description = """
+    안드로이드에서 Kakao OIDC로 받은 **ID 토큰(id_token)** 을 서버에 전달해 로그인/자동가입을 수행합니다.
+    
+    ## 프론트 가이드
+    - **반드시 `id_token`** 을 보내세요. (access_token 아님)
+    - 로그인 요청 시 클라이언트는 Kakao SDK에서 **scope에 `openid` + `account_email`** 포함.
+    - 서버 응답의 `token`은 **우리 서비스 JWT** 입니다. 이후 API 호출 시
+      `Authorization: Bearer {token}` 로 전송하세요.
+    - `profileCompleted`가 **false**면 앱 회원가입 2단계(닉네임/이름/프사 등) 입력 화면으로 이동 후
+      `/auth/profile` 에 저장하세요.
+    
+    
+    ## 보안/검증 요약(서버 측)
+    - Kakao OIDC의 `iss/aud/exp(/nonce)` 검증을 수행합니다.
+    - 이메일은 **필수 동의**여야 하며, 미제공 시 가입/로그인을 거부합니다.
+    - 신규 사용자일 경우 email만으로 계정 생성하고 `profileCompleted=false` 로 반환합니다.
+    
+    ## 정상 응답 예시(HTTP 200)
+    {
+      "isSuccess": true,
+      "code": "OK",
+      "message": "success",
+      "result": {
+        "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",   // 우리 서비스 JWT
+        "profileCompleted": false,
+        "name": null,
+        "nickname": null,
+        "loginType": "KAKAO"
+      }
+    }
+    """
+
+    )    @PostMapping("/kakao/oidc")
+    public ResponseEntity<CommonResponse<LoginResponseDto>> kakaoOidc(@RequestBody KakaoAuthRequestDto request) {
+        LoginResponseDto response = authService.loginWithKakaoIdToken(request.getIdToken());
+        return ResponseEntity.ok(CommonResponse.onSuccess(response));
+    }
+
 
     /**
      * 프로필 등록 (회원가입 2단계)
@@ -63,11 +100,11 @@ public class AuthController {
             @RequestParam(required = false) LoginType loginType
     ) {
         if (authenticatedProvider.isAuthenticated()) {
-            // ✅ 소셜 로그인
+            // 소셜 로그인
             User user = authenticatedProvider.getCurrentUser();
             authService.updateProfile(user.getEmail(), user.getLoginType(), request);
         } else {
-            // ✅ 앱 회원가입
+            // 앱 회원가입
             if (email == null || loginType == null) {
                 throw new BusinessException(StatusCode.INVALID_REQUEST);
             }
