@@ -83,11 +83,31 @@ public class AuthController {
     """
 
     )    @PostMapping("/kakao/oidc")
-    public ResponseEntity<CommonResponse<LoginResponseDto>> kakaoOidc(@RequestBody KakaoAuthRequestDto request) {
+    public ResponseEntity<CommonResponse<LoginResponseDto>> kakaoOidc(@RequestBody OIDCRequestDto request) {
         LoginResponseDto response = authService.loginWithKakaoIdToken(request.getIdToken());
         return ResponseEntity.ok(CommonResponse.onSuccess(response));
     }
 
+
+    @Operation(
+            summary = "구글 로그인 (OIDC)",
+            description = """
+    Android에서 Google Identity Services로 받은 **ID 토큰(id_token)** 을 서버로 보내 로그인/자동가입을 수행합니다.
+
+    - 클라: `serverClientId`에 **웹 클라이언트 ID**를 사용하여 id_token을 발급받을 것.
+    - 가능하면 `nonce`도 함께 보내 재생공격을 방지합니다.
+    - 응답의 `token`은 **우리 서비스 JWT**입니다. 이후 `Authorization: Bearer {token}`로 호출하세요.
+    - `profileCompleted == false`면 `/auth/profile` 2단계 가입을 완료하세요.
+    """
+    )
+    @PostMapping("/google/oidc")
+    public ResponseEntity<CommonResponse<LoginResponseDto>> googleOidc(
+            @RequestBody @Valid OIDCRequestDto request
+    ) {
+        // AuthService에 loginWithGoogleIdToken(idToken) 메서드가 있다고 가정
+        LoginResponseDto response = authService.loginWithGoogleIdToken(request.getIdToken());
+        return ResponseEntity.ok(CommonResponse.onSuccess(response));
+    }
 
     /**
      * 프로필 등록 (회원가입 2단계)
