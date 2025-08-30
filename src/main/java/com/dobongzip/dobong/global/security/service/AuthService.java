@@ -25,6 +25,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
     private final KakaoOidcService kakaoOidcService;
+    private final GoogleOidcService googleOidcService;
 
 
     // 일반 로그인
@@ -125,4 +126,27 @@ public class AuthService {
         String token = jwtUtil.createAccessToken(user.getEmail(), LoginType.KAKAO.name());
         return new LoginResponseDto(token, user.isProfileCompleted(), user.getName(), user.getNickname(), LoginType.KAKAO);
     }
+
+
+    @Transactional
+    public LoginResponseDto loginWithGoogleIdToken(String idToken) {
+        var claims = googleOidcService.verify(idToken);
+
+        if (claims.email() == null || claims.email().isBlank()) {
+            throw new BusinessException(StatusCode.EMAIL_NOT_PROVIDED);
+        }
+
+        User user = userRepository.findByEmail(claims.email())
+                .orElseGet(() -> userRepository.save(
+                        User.builder()
+                                .email(claims.email())
+                                .loginType(LoginType.GOOGLE)
+                                .profileCompleted(false) // 닉네임/이름/프사는 2단계에서 입력
+                                .build()
+                ));
+
+        String token = jwtUtil.createAccessToken(user.getEmail(), LoginType.GOOGLE.name());
+        return new LoginResponseDto(token, user.isProfileCompleted(), user.getName(), user.getNickname(), LoginType.GOOGLE);
+    }
+
 }
