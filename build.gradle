@@ -30,7 +30,7 @@ dependencies {
     annotationProcessor 'org.projectlombok:lombok'
 
     // MySQL
-    runtimeOnly 'com.mysql:mysql-connector-j'
+    implementation 'com.mysql:mysql-connector-j'
 
     // jwt
     implementation 'io.jsonwebtoken:jjwt-api:0.11.5'
