@@ -32,7 +32,7 @@ public interface PlaceReviewRepository extends JpaRepository<PlaceReview, Long> 
 
     Optional<PlaceReview> findByIdAndDeletedFalse(Long id);
 
-    Optional<PlaceReview> findByPlaceIdAndAuthorIdAndDeletedFalse(String placeId, Long authorId);
-
-    boolean existsByPlaceIdAndAuthorIdAndDeletedFalse(String placeId, Long authorId);
+    //  author(User)의 id로 탐색할 때는 Author_Id 형태 사용
+    Optional<PlaceReview> findByPlaceIdAndAuthor_IdAndDeletedFalse(String placeId, Long authorId);
+    boolean existsByPlaceIdAndAuthor_IdAndDeletedFalse(String placeId, Long authorId);
 }
