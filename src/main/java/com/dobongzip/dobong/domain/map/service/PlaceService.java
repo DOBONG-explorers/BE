@@ -6,7 +6,6 @@ import com.dobongzip.dobong.domain.map.dto.response.PlaceDetailsResponse;
 import com.dobongzip.dobong.domain.map.dto.response.PlaceDto;
 import com.dobongzip.dobong.domain.map.dto.response.PlacesV1PlaceDetailsResponse;
 import com.dobongzip.dobong.domain.map.dto.response.PlacesV1SearchTextResponse;
-import com.dobongzip.dobong.domain.map.dto.response.ReviewListResponse;
 import com.dobongzip.dobong.domain.map.util.GeoUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -132,30 +131,6 @@ public class PlaceService {
     }
 
 
-    public ReviewListResponse getPlaceReviews(String placeId, int limit) {
-        var d = v1.fetchPlaceReviews(placeId);
-        if (d == null) return ReviewListResponse.builder()
-                .placeId(placeId).rating(null).reviewCount(0).reviews(List.of()).build();
-
-        var reviews = Optional.ofNullable(d.getReviews())
-                .orElseGet(List::of).stream()
-                .limit(limit)
-                .map(r -> ReviewListResponse.Review.builder()
-                        .authorName(r.getAuthorAttribution() != null ? r.getAuthorAttribution().getDisplayName() : null)
-                        .authorProfilePhoto(r.getAuthorAttribution() != null ? r.getAuthorAttribution().getPhotoUri() : null)
-                        .rating(r.getRating())
-                        .text(r.getText() != null ? r.getText().getText() : null)
-                        .relativeTime(r.getRelativePublishTimeDescription())
-                        .build())
-                .toList();
-
-        return ReviewListResponse.builder()
-                .placeId(d.getId())
-                .rating(d.getRating())
-                .reviewCount(d.getUserRatingCount())
-                .reviews(reviews)
-                .build();
-    }
 
     // ==========================
     // 내부 헬퍼
