@@ -5,8 +5,12 @@ import com.dobongzip.dobong.domain.mainpage.client.SeoulEventClient;
 import com.dobongzip.dobong.domain.mainpage.dto.request.EventSearchRequest;
 import com.dobongzip.dobong.domain.mainpage.dto.response.EventDto;
 import com.dobongzip.dobong.domain.mainpage.dto.response.SeoulEventResponse;
+import com.dobongzip.dobong.domain.map.client.GooglePlacesClientV1;
+import com.dobongzip.dobong.global.exception.BusinessException;
+import com.dobongzip.dobong.global.response.StatusCode;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -14,6 +18,7 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.*;
 
 @Slf4j
@@ -23,25 +28,47 @@ public class MainService {
 
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
     private static final DateTimeFormatter F = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+    private final GooglePlacesClientV1 placesClient;
 
     private final SeoulEventClient client;
-
     private final DobongOpenApiClient dobongOpenApiClient;
 
+    /** 도봉 오늘의 행사 목록 */
     public List<EventDto> getDobongToday(EventSearchRequest req) {
-        String dateStr = (req.getDate()==null || req.getDate().isBlank())
-                ? LocalDate.now(KST).format(F) : req.getDate();
-        LocalDate target = LocalDate.parse(dateStr, F);
+        // 1) 날짜 파싱(+ 검증)
+        String dateStr = (req.getDate() == null || req.getDate().isBlank())
+                ? LocalDate.now(KST).format(F)
+                : req.getDate();
 
-        // 1) 전수 호출(권장) — 필요 시 client.callAllRowsPaged(500)로 변경
-        SeoulEventResponse res = client.callAll();
+        final LocalDate target;
+        try {
+            target = LocalDate.parse(dateStr, F);
+        } catch (DateTimeParseException ex) {
+            // 잘못된 요청 → 400
+            throw BusinessException.of(StatusCode.INVALID_DATE_FORMAT);
+        }
 
-        List<EventDto> rows = Optional.ofNullable(res)
-                .map(SeoulEventResponse::getCulturalEventInfo)
-                .map(SeoulEventResponse.Body::getRow)
-                .orElse(List.of());
+        // 2) 외부 API 호출
+        final SeoulEventResponse res;
+        try {
+            res = client.callAll(); // 필요 시 callAllRowsPaged 로 교체 가능
+        } catch (Exception ex) {
+            log.error("[SeoulEvent] API call failed", ex);
+            // 외부 API 호출 실패 → 502
+            throw BusinessException.of(StatusCode.SEOUL_EVENT_API_FAILED);
+        }
 
-        // ── 진단 로그 ──
+        // 3) 응답 검증
+        if (res == null
+                || res.getCulturalEventInfo() == null
+                || res.getCulturalEventInfo().getRow() == null) {
+            // 응답 포맷 이상 → 502
+            throw BusinessException.of(StatusCode.SEOUL_EVENT_API_BAD_RESPONSE);
+        }
+
+        List<EventDto> rows = res.getCulturalEventInfo().getRow();
+
+        // ── 진단 로그(유지) ──
         log.info("RAW_TOTAL={}", rows.size());
         rows.stream().map(EventDto::getGuName).filter(Objects::nonNull)
                 .map(String::trim).distinct().sorted()
@@ -51,25 +78,87 @@ public class MainService {
             catch (Exception ignore) {}
         });
 
-        // 2) 날짜 포함 + 도봉구 판정(PLACE 보조) 필터
+        // 4) 필터링
         List<EventDto> result = rows.stream()
                 .filter(e -> isTodayIncluded(e, target))
                 .filter(this::isDobong)
                 .toList();
 
-        // 카운트 확인
+        // 카운트 로그
         long todayOnly = rows.stream().filter(e -> isTodayIncluded(e, target)).count();
         long dobongOnly = rows.stream().filter(this::isDobong).count();
         log.info("COUNTS total={}, todayOnly={}, dobongOnly={}, final={}",
                 rows.size(), todayOnly, dobongOnly, result.size());
 
+        // 비즈니스적으로 "없음"은 정상 케이스이므로 빈 리스트 반환(에러 아님)
         return result;
     }
+
+    /** 도봉 문화유산(구청 오픈API) */
+    public JsonNode getDobongCulturalHeritage() {
+        final String response;
+        try {
+            response = dobongOpenApiClient.requestDobongData();
+        } catch (Exception ex) {
+            log.error("[DobongOpenAPI] API call failed", ex);
+            throw BusinessException.of(StatusCode.DOBONG_OPENAPI_FAILED);
+        }
+
+        if (response == null || response.isBlank()) {
+            throw BusinessException.of(StatusCode.DOBONG_OPENAPI_BAD_RESPONSE);
+        }
+
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode outer = mapper.readTree(response);
+
+            JsonNode dataNode = outer.get("CONT_DATA_ROW");
+            if (dataNode == null || !dataNode.isArray()) {
+                throw BusinessException.of(StatusCode.DOBONG_OPENAPI_BAD_RESPONSE);
+            }
+
+            // === Google Places 사진 주입 ===
+            for (JsonNode item : dataNode) {
+                String name = safeText(item, "SHD_NM");
+                // 도로명 주소 우선, 없으면 지번
+                String addr = firstNonBlank(
+                        safeText(item, "CO_F2"),
+                        safeText(item, "SCD_JIBUN_ADDR")
+                );
+                Double lat = safeDouble(item, "LATITUDE");
+                Double lng = safeDouble(item, "LONGITUDE");
+
+                String query = (name + " " + Optional.ofNullable(addr).orElse("")).trim();
+
+                Optional<String> photoUrl = Optional.empty();
+                if (!query.isBlank()) {
+                    photoUrl = placesClient.searchFirstPhotoUrlByText(query, lat, lng, 800);
+                }
+
+                if (item.isObject()) {
+                    ((ObjectNode) item).put(
+                            "IMAGE_URL",
+                            photoUrl.orElse("https://your.cdn/static/placeholder.png")
+                    );
+                }
+            }
+
+            return dataNode;
+
+        } catch (BusinessException be) {
+            throw be;
+        } catch (Exception ex) {
+            log.error("[DobongOpenAPI] JSON parse failed", ex);
+            throw BusinessException.of(StatusCode.DOBONG_OPENAPI_BAD_RESPONSE);
+        }
+    }
+
+    // ───────────────────────── private helpers ─────────────────────────
 
     private boolean isDobong(EventDto e) {
         String gu = Optional.ofNullable(e.getGuName()).orElse("").trim();
         if ("도봉구".equals(gu)) return true;
-        // 보조: 장소에만 표기된 경우
+        // 보조: 장소 텍스트로 판정
         String place = Optional.ofNullable(e.getPlace()).orElse("");
         return place.contains("도봉구") || place.contains("도봉");
     }
@@ -102,24 +191,18 @@ public class MainService {
         try { return LocalDate.parse(s, F); }
         catch (Exception ex) { return null; }
     }
-
-    public JsonNode getDobongCulturalHeritage() {
-        try {
-            String response = dobongOpenApiClient.requestDobongData();
-            ObjectMapper mapper = new ObjectMapper();
-
-            JsonNode outer = mapper.readTree(response);
-
-            // 기존 "data" 대신 실제 key 사용
-            JsonNode dataNode = outer.get("CONT_DATA_ROW");
-            if (dataNode == null) {
-                throw new IllegalStateException("'CONT_DATA_ROW' 필드가 없습니다. 응답: " + outer.toPrettyString());
-            }
-            return dataNode;
-        } catch (Exception e) {
-            throw new RuntimeException("도봉 문화유산 데이터 처리 중 오류", e);
-        }
+    // ====== 헬퍼 ======
+    private String safeText(JsonNode n, String field) {
+        JsonNode v = n.get(field);
+        return (v == null || v.isNull()) ? "" : v.asText("");
     }
-
-
+    private String firstNonBlank(String... ss) {
+        for (String s : ss) if (s != null && !s.isBlank()) return s;
+        return "";
+    }
+    private Double safeDouble(JsonNode n, String field) {
+        String s = safeText(n, field);
+        if (s.isBlank()) return null;
+        try { return Double.parseDouble(s); } catch (Exception ignored) { return null; }
+    }
 }
