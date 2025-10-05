@@ -12,6 +12,12 @@ public enum StatusCode {
     PROFILE_NOT_COMPLETED(HttpStatus.OK, "AUTH2001", "프로필 정보가 아직 입력되지 않았습니다."),
     INVALID_REQUEST(HttpStatus.BAD_REQUEST, "COMMON4001", "잘못된 요청입니다."),
 
+
+    // Review 관련
+    REVIEW_ALREADY_EXISTS(HttpStatus.BAD_REQUEST, "REVIEW4001", "이미 이 장소에 작성한 리뷰가 있습니다. 수정 기능을 이용하세요."),
+    REVIEW_NOT_FOUND(HttpStatus.NOT_FOUND, "REVIEW404", "리뷰를 찾을 수 없습니다."),
+    REVIEW_FORBIDDEN(HttpStatus.FORBIDDEN, "REVIEW403", "리뷰에 대한 권한이 없습니다."),
+    REVIEW_UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "REVIEW401", "로그인이 필요합니다."),
     // 유저를 이메일로 찾을 수 없을 때
     USER_NOT_FOUND_BY_EMAIL(HttpStatus.BAD_REQUEST, "USER4004", "해당 이메일로 가입된 사용자가 없습니다."),
     // 소셜 로그인 계정은 비밀번호 변경/설정 불가
