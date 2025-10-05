@@ -2,6 +2,7 @@ package com.dobongzip.dobong.domain.map.client;
 
 import com.dobongzip.dobong.domain.map.dto.response.PlacesV1PlaceDetailsResponse;
 import com.dobongzip.dobong.domain.map.dto.response.PlacesV1SearchTextResponse;
+import com.fasterxml.jackson.databind.JsonNode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.*;
@@ -11,8 +12,10 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.net.URI;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @Slf4j
 @Component
@@ -185,4 +188,56 @@ public class GooglePlacesClientV1 {
         if (placeId == null) return "";
         return placeId.startsWith("places/") ? placeId.substring("places/".length()) : placeId;
     }
+
+    public Optional<String> searchFirstPhotoUrlByText(String textQuery, Double lat, Double lng, int maxWidthPx) {
+        URI uri = URI.create(BASE + "/places:searchText");
+        HttpHeaders headers = newHeaders(SEARCH_FIELD_MASK);
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("textQuery", textQuery);
+        body.put("languageCode", props.getLanguage());
+        body.put("regionCode", props.getRegion());
+
+        // 좌표가 있으면 Location Bias (반경 300m)
+        if (lat != null && lng != null) {
+            body.put("locationBias", Map.of(
+                    "circle", Map.of(
+                            "center", Map.of(
+                                    "latitude", lat,
+                                    "longitude", lng
+                            ),
+                            "radius", 300.0
+                    )
+            ));
+        }
+
+        try {
+            // places:searchText 응답을 JsonNode로 받아 처리 (DTO 없어도 OK)
+            ResponseEntity<JsonNode> res = postJson(uri, headers, body, JsonNode.class);
+            JsonNode root = res.getBody();
+            if (root == null || !root.has("places")) return Optional.empty();
+
+            JsonNode places = root.get("places");
+            if (!places.isArray() || places.isEmpty()) return Optional.empty();
+
+            // 1순위 후보 선택 (필요시 더 정교한 스코어링 가능)
+            JsonNode first = places.get(0);
+            JsonNode photos = first.path("photos");
+            if (!photos.isArray() || photos.isEmpty()) return Optional.empty();
+
+            // v1은 photo.name 형태 ("places/xxx/photos/yyy")
+            String photoName = photos.get(0).path("name").asText(null);
+            if (photoName == null || photoName.isBlank()) return Optional.empty();
+
+            return Optional.ofNullable(buildPhotoUrl(photoName, maxWidthPx));
+        } catch (HttpStatusCodeException e) {
+            log.warn("[PLACES v1 searchFirstPhotoUrlByText] status={} body={}",
+                    e.getStatusCode().value(), e.getResponseBodyAsString());
+            return Optional.empty();
+        } catch (Exception e) {
+            log.warn("[PLACES v1 searchFirstPhotoUrlByText] fail query={}", textQuery, e);
+            return Optional.empty();
+        }
+}
 }
