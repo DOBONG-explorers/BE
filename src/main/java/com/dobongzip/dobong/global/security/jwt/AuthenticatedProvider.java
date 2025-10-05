@@ -16,36 +16,33 @@ public class AuthenticatedProvider {
 
     private final UserRepository userRepository;
 
+    /** 로그인 유저(필수) — 없으면 401 */
+    public User getCurrentUser() {
+        CustomUserDetails userDetails = (CustomUserDetails)
+                SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+
+        return userRepository.findByEmailAndLoginType(
+                userDetails.getEmail(),
+                userDetails.getLoginType()
+        ).orElseThrow(() -> new BusinessException(StatusCode.USER_NOT_FOUND));
+    }
+
+    /** 인증 여부(anonymous 제외) */
     public boolean isAuthenticated() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        return authentication != null && authentication.isAuthenticated()
-                && !(authentication.getPrincipal() instanceof String); // "anonymousUser" 방지
+        return authentication != null &&
+                authentication.isAuthenticated() &&
+                !(authentication.getPrincipal() instanceof String);
     }
 
-    /** 현재 SecurityContext의 Principal(CustomUserDetails) 또는 null */
-    public CustomUserDetails getPrincipalOrNull() {
-        if (!isAuthenticated()) return null;
-        Object p = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        return (p instanceof CustomUserDetails cud) ? cud : null;
-    }
-
-    /** 현재 Principal 없으면 401 던짐 */
-    public CustomUserDetails getPrincipalOrThrow() {
-        CustomUserDetails p = getPrincipalOrNull();
-        if (p == null) throw BusinessException.of(StatusCode.REVIEW_UNAUTHORIZED);
-        return p;
-    }
-
-    /** 현재 사용자 엔티티(있으면 반환, 없으면 404) */
-    public User getCurrentUser() {
-        CustomUserDetails userDetails = getPrincipalOrThrow();
-        return userRepository.findByEmailAndLoginType(userDetails.getEmail(), userDetails.getLoginType())
-                .orElseThrow(() -> BusinessException.of(StatusCode.USER_NOT_FOUND));
-    }
-
-    /** 현재 사용자 id or null */
+    /** 로그인 유저 id — 비로그인/anonymous면 null */
     public Long currentUserIdOrNull() {
-        CustomUserDetails p = getPrincipalOrNull();
-        return (p != null) ? p.getId() : null;
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()
+                || authentication.getPrincipal() instanceof String) {
+            return null;
+        }
+        CustomUserDetails principal = (CustomUserDetails) authentication.getPrincipal();
+        return principal.getId();
     }
 }
