@@ -20,5 +20,6 @@ public class ReviewListResponse {
         private Double rating;             // 별점
         private String text;               // 본문
         private String relativeTime;       // "1시간 전" 등
+        private boolean isMine;
     }
 }
