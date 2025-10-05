@@ -15,7 +15,7 @@ import java.util.List;
 
 @Tag(name = "메인페이지", description = "메인페이지 조회 API")
 @RestController
-@RequestMapping("/api/mainpage")
+@RequestMapping("/api/v1/mainpage")
 @RequiredArgsConstructor
 public class MainController {
 
