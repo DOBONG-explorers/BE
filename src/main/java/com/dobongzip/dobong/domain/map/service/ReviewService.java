@@ -32,7 +32,6 @@ public class ReviewService {
 
     // ========= 조회 =========
 
-    /** 구글 리뷰만(Read-only) */
     @Transactional(readOnly = true)
     public ReviewListResponse getGoogleReviews(String placeId, int limit) {
         var d = v1.fetchPlaceReviews(placeId);
@@ -51,7 +50,7 @@ public class ReviewService {
                         .rating(r.getRating())
                         .text(r.getText() != null ? r.getText().getText() : null)
                         .relativeTime(r.getRelativePublishTimeDescription())
-                        .isMine(false) // 구글 리뷰는 항상 false
+                        .isMine(false)
                         .build())
                 .toList();
 
@@ -63,7 +62,6 @@ public class ReviewService {
                 .build();
     }
 
-    /** 로컬(DB) 리뷰만 */
     @Transactional(readOnly = true)
     public ReviewListResponse getLocalReviews(String placeId, int limit, AvatarResolver avatar) {
         Long me = authenticatedProvider.currentUserIdOrNull(); // 익명 가능
@@ -92,24 +90,20 @@ public class ReviewService {
                 .build();
     }
 
-    /** 구글 + 로컬 합산(가중 평균) + 옵션: 내 리뷰 상단 고정 */
     @Transactional(readOnly = true)
     public ReviewListResponse getCombinedReviews(String placeId,
                                                  int limit,
                                                  boolean pinMineTop,
                                                  AvatarResolver avatar) {
 
-        // 1) 구글 일부
         var g = getGoogleReviews(placeId, Math.min(10, limit));
         long gCnt = Optional.ofNullable(g.getReviewCount()).map(Integer::longValue).orElse(0L);
         Double gAvg = g.getRating();
 
-        // 2) 로컬
         var localOnly = getLocalReviews(placeId, limit, avatar);
         long lCnt = Optional.ofNullable(localOnly.getReviewCount()).map(Integer::longValue).orElse(0L);
         Double lAvg = localOnly.getRating();
 
-        // 3) 통계 합산
         Double combinedAvg = null;
         Integer combinedCnt = null;
         if ((gCnt + lCnt) > 0) {
@@ -118,11 +112,9 @@ public class ReviewService {
             combinedCnt = Math.toIntExact(gCnt + lCnt);
         }
 
-        // 4) 리스트 합치기(로컬 우선 + 구글 일부)
         var merged = new ArrayList<ReviewListResponse.Review>(localOnly.getReviews());
         merged.addAll(g.getReviews());
 
-        // 5) 내 리뷰 상단 고정
         if (pinMineTop) {
             var user = authenticatedProvider.isAuthenticated() ? authenticatedProvider.getCurrentUser() : null;
             if (user != null) {
@@ -149,11 +141,10 @@ public class ReviewService {
                 .build();
     }
 
-    /** 내가 남긴 리뷰 1개(뷰용) */
     @Transactional(readOnly = true)
     public ReviewListResponse.Review getMyReviewView(String placeId, Long me, String myPhotoUrl, String myName) {
         if (me == null) return null;
-        return reviewRepository.findByPlaceIdAndAuthorIdAndDeletedFalse(placeId, me)
+        return reviewRepository.findByPlaceIdAndAuthor_IdAndDeletedFalse(placeId, me)
                 .map(r -> ReviewListResponse.Review.builder()
                         .authorName(r.getAuthorName())
                         .authorProfilePhoto(myPhotoUrl)
@@ -165,49 +156,55 @@ public class ReviewService {
                 .orElse(null);
     }
 
-    // ========= CRUD(서비스에서 인증 처리) =========
+    // ========= CRUD =========
 
     public Long create(String placeId, ReviewCreateRequest req) {
-        var user = authenticatedProvider.getCurrentUser(); // 비로그인 시 내부에서 401 던짐
+        User user = authenticatedProvider.getCurrentUser(); // 비로그인 → 401
         Long me = user.getId();
         String myDisplayName = displayNameOf(user);
 
-        if (reviewRepository.existsByPlaceIdAndAuthorIdAndDeletedFalse(placeId, me)) {
+        if (reviewRepository.existsByPlaceIdAndAuthor_IdAndDeletedFalse(placeId, me)) {
             throw BusinessException.of(StatusCode.REVIEW_ALREADY_EXISTS);
         }
+
         var saved = reviewRepository.save(PlaceReview.builder()
                 .placeId(placeId)
-                .authorId(me)
-                .authorName(myDisplayName)
+                .author(user)                 // ★ 핵심: 엔티티로 매핑
+                .authorName(myDisplayName)    // 스냅샷
                 .rating(req.rating())
                 .text(req.text())
                 .deleted(false)
                 .build());
+
         return saved.getId();
     }
 
     public void update(String placeId, Long reviewId, ReviewUpdateRequest req) {
-        var user = authenticatedProvider.getCurrentUser(); // 401 처리
+        User user = authenticatedProvider.getCurrentUser();
         Long me = user.getId();
         String myDisplayName = displayNameOf(user);
 
         var r = reviewRepository.findByIdAndDeletedFalse(reviewId)
                 .orElseThrow(() -> BusinessException.of(StatusCode.REVIEW_NOT_FOUND));
-        if (!Objects.equals(r.getPlaceId(), placeId) || !Objects.equals(r.getAuthorId(), me)) {
+
+        if (!Objects.equals(r.getPlaceId(), placeId) || !Objects.equals(r.getAuthor().getId(), me)) {
             throw BusinessException.of(StatusCode.REVIEW_FORBIDDEN);
         }
+
         r.edit(req.rating(), req.text(), myDisplayName);
     }
 
     public void delete(String placeId, Long reviewId) {
-        var user = authenticatedProvider.getCurrentUser(); // 401 처리
+        User user = authenticatedProvider.getCurrentUser();
         Long me = user.getId();
 
         var r = reviewRepository.findByIdAndDeletedFalse(reviewId)
                 .orElseThrow(() -> BusinessException.of(StatusCode.REVIEW_NOT_FOUND));
-        if (!Objects.equals(r.getPlaceId(), placeId) || !Objects.equals(r.getAuthorId(), me)) {
+
+        if (!Objects.equals(r.getPlaceId(), placeId) || !Objects.equals(r.getAuthor().getId(), me)) {
             throw BusinessException.of(StatusCode.REVIEW_FORBIDDEN);
         }
+
         r.softDelete();
     }
 
@@ -220,7 +217,7 @@ public class ReviewService {
     private static double roundHalf(double v) { return Math.round(v * 2) / 2.0; }
 
     private static String toRelative(java.time.LocalDateTime createdAt) {
-        if (createdAt == null) return "-"; // ← 안전장치
+        if (createdAt == null) return "-";
         ZonedDateTime now = ZonedDateTime.now(KST);
         ZonedDateTime then = createdAt.atZone(KST);
         var d = java.time.Duration.between(then, now);
@@ -233,7 +230,6 @@ public class ReviewService {
         long mon = day/30; if (mon < 12) return mon + "개월 전";
         long y = day/365; return y + "년 전";
     }
-
 
     /** 표시 이름: 닉네임 > 이름 > 이메일 아이디 */
     private String displayNameOf(User u) {
