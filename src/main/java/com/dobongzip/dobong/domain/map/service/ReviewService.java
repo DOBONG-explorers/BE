@@ -159,6 +159,9 @@ public class ReviewService {
     // ========= CRUD =========
 
     public Long create(String placeId, ReviewCreateRequest req) {
+        if (!authenticatedProvider.isAuthenticated()) {
+            throw BusinessException.of(StatusCode.LOGIN_REQUIRED);
+        }
         User user = authenticatedProvider.getCurrentUser(); // 비로그인 → 401
         Long me = user.getId();
         String myDisplayName = displayNameOf(user);
@@ -180,6 +183,9 @@ public class ReviewService {
     }
 
     public void update(String placeId, Long reviewId, ReviewUpdateRequest req) {
+        if (!authenticatedProvider.isAuthenticated()) {
+            throw BusinessException.of(StatusCode.LOGIN_REQUIRED);
+        }
         User user = authenticatedProvider.getCurrentUser();
         Long me = user.getId();
         String myDisplayName = displayNameOf(user);
@@ -195,6 +201,9 @@ public class ReviewService {
     }
 
     public void delete(String placeId, Long reviewId) {
+        if (!authenticatedProvider.isAuthenticated()) {
+            throw BusinessException.of(StatusCode.LOGIN_REQUIRED);
+        }
         User user = authenticatedProvider.getCurrentUser();
         Long me = user.getId();
 
