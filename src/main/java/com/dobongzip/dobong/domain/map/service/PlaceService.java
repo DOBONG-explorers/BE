@@ -1,5 +1,6 @@
 package com.dobongzip.dobong.domain.map.service;
 
+import com.dobongzip.dobong.domain.like.service.LikeService;
 import com.dobongzip.dobong.domain.map.client.GooglePlacesClientV1;
 import com.dobongzip.dobong.domain.map.client.WikipediaClient;
 import com.dobongzip.dobong.domain.map.dto.response.PlaceDetailsResponse;
@@ -17,6 +18,7 @@ import java.util.*;
 public class PlaceService {
     private final GooglePlacesClientV1 v1;
     private final WikipediaClient wikipedia;
+    private final LikeService likeService;
 
     public List<PlaceDto> findDobongAttractions(double userLat, double userLng, int limit) {
         PlacesV1SearchTextResponse res = v1.searchDobongAttractions();
@@ -115,6 +117,7 @@ public class PlaceService {
                 .limit(8)
                 .map(p -> v1.buildPhotoUrl(p.getName(), 1280))
                 .toList();
+        boolean liked = likeService.isLikedForCurrentUser(placeId);
 
         return PlaceDetailsResponse.builder()
                 .placeId(d.getId())
@@ -127,6 +130,7 @@ public class PlaceService {
                 .rating(d.getRating())
                 .reviewCount(d.getUserRatingCount())
                 .photos(photoUrls)
+                .liked(liked)
                 .build();
     }
 
