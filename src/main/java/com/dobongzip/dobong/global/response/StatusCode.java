@@ -11,6 +11,8 @@ public enum StatusCode {
     PROFILE_NOT_COMPLETED(HttpStatus.OK, "AUTH2001", "프로필 정보가 아직 입력되지 않았습니다."),
     UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "AUTH401", "이메일 또는 비밀번호가 일치하지 않습니다."),
     USER_ALREADY_EXISTS(HttpStatus.BAD_REQUEST, "AUTH4002", "이미 등록된 사용자입니다."),
+    LOGIN_REQUIRED(HttpStatus.UNAUTHORIZED, "AUTH4010", "로그인이 필요합니다."),
+
 
     // ── 공통 요청/검증 ────────────────────────────────────────────────────────
     INVALID_REQUEST(HttpStatus.BAD_REQUEST, "COMMON4001", "잘못된 요청입니다."),
