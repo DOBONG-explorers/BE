@@ -27,11 +27,18 @@ jobs:
       - name: Set up Gradle (cache)
         uses: gradle/actions/setup-gradle@v3
 
-      - name: Build Boot JAR
+      - name: Build Boot JAR (with retries & verbose)
         run: |
+          set -e
           chmod +x ./gradlew
-          ./gradlew clean bootJar -x test
-          ls -al build/libs
+          for i in 1 2 3; do
+            ./gradlew --no-daemon --info --stacktrace clean bootJar -x test && break || {
+              echo "Gradle failed on attempt $i, retrying in 15s..."
+              sleep 15
+            }
+          done
+        env:
+          GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.jvmargs=-Xmx2g"
 
       # ✅ Docker 빌드/푸시
       - uses: docker/setup-buildx-action@v3
