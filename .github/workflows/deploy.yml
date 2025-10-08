@@ -1,0 +1,93 @@
+name: Deploy (Rolling / Swarm)
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Image tag (e.g., prod-2025-10-07)"
+        required: true
+
+env:
+  IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/dobongzip-api
+  REMOTE_DIR: /opt/dobongzip
+
+jobs:
+  build_and_push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ env.IMAGE_NAME }}:${{ github.event.inputs.image_tag }}
+
+  deploy:
+    needs: build_and_push
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # deploy/ 폴더 구조 그대로 복사
+      - name: Ship deploy/ directory
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          source: "deploy/**"
+          target: "${{ env.REMOTE_DIR }}"
+          strip_components: 0
+
+      # ENV(멀티라인) 시크릿으로 서버에 .env 생성
+      - name: Write .env from ENV secret
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          ENV_FILE: ${{ secrets.ENV }}                      # 멀티라인 .env 내용
+          SPRO: ${{ secrets.SPRING_PROFILES_ACTIVE }}       # 별도 관리값(원하면 ENV에 포함 가능)
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          envs: ENV_FILE,SPRO
+          script: |
+            set -e
+            cd "${{ env.REMOTE_DIR }}"
+            umask 177
+            printf '%s' "$ENV_FILE" > .env
+            printf '\nSPRING_PROFILES_ACTIVE=%s\n' "$SPRO" >> .env
+            chmod 600 .env
+
+      - name: Rolling update with Docker Swarm
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          script: |
+            set -e
+            docker swarm init || true
+            echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+
+            cd "${{ env.REMOTE_DIR }}/deploy"
+            # ../.env를 export → stack.yml의 ${VAR} 치환/주입
+            set -a
+            . ../.env
+            IMAGE_NAME="${{ env.IMAGE_NAME }}"
+            TAG="${{ github.event.inputs.image_tag }}"
+            export IMAGE_NAME TAG
+            set +a
+
+            docker stack deploy -c stack.yml dobong --with-registry-auth
+            docker service ls
+            docker service ps dobong_api --no-trunc
+      

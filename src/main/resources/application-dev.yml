@@ -13,27 +13,9 @@ spring:
       expiration: ${JWT_EXPIRATION}
     secret: ${JWT_SECRET_KEY}
 
-  seoul:
-    openapi:
-      key: ${DOBONG_EVENT}
-    api:
-      base-url: ${URL_DOBONG_EVENT}
-
-  dobong:
-    api:
-      base-url: ${DOBONG_HERI}
-      api-key: ${API_KEY}
-      cont-code: ${CONT_CODE}
-
-
-  kakao:
-    rest-key: ${KAKAO_REST_KEY}
-
-
-
-
 kakao:
-  rest-api-key: ${KAKAO_AUTH_API_KEY}       # 카카오 REST API Key (aud 검증용)
+  rest-key: ${KAKAO_REST_KEY}            # 비즈 API용
+  rest-api-key: ${KAKAO_AUTH_API_KEY}    # aud 검증용(이름 하나로 통일 원하면 rest-key만 쓰도록 코드/설정 맞추기)
   oidc:
     issuer: https://kauth.kakao.com
     jwks-uri: https://kauth.kakao.com/.well-known/jwks.json
@@ -43,13 +25,10 @@ google:
   oidc:
     issuer: https://accounts.google.com
     jwks-uri: https://www.googleapis.com/oauth2/v3/certs
-
   places:
-    api-key: ${GOOGLE_PLACES_API_KEY}   # 환경변수로 주입 권장
+    api-key: ${GOOGLE_PLACES_API_KEY}
     language: ko
     region: KR
-
-
 
 logging:
   level:
