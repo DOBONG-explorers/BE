@@ -4,7 +4,7 @@ configs:
   nginx_conf:
     file: ./nginx/nginx.conf
   nginx_vhost:
-    file: ./nginx/conf.d/dobong.conf
+    file: ./nginx/conf/dobong.conf
   maintenance_html:
     file: ./nginx/maintenance.html
 
