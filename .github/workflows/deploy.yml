@@ -31,7 +31,7 @@ jobs:
           chmod +x ./gradlew
           ./gradlew --no-daemon clean bootJar -x test
 
-      # ✅ 아티팩트 확인 (런너에서 jar가 실제로 있는지)
+      # 런너에서 산출물 존재 확인(디버깅 도움)
       - name: Verify artifact on runner
         run: |
           echo "== build/libs listing =="
@@ -41,17 +41,17 @@ jobs:
           echo "Picked: $JAR"
           test -f "$JAR"
 
-      # 🔹 사전 준비: 디렉터리/권한 보장
+      # 사전 준비: 디렉터리/권한 보장 (root 생성 폴더 재발 방지)
       - name: Prepare directories on EC2
         uses: appleboy/ssh-action@v1.2.0
         env:
           SERVER_DIR: ${{ env.SERVER_DIR }}
         with:
           host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
+          username: ${{ secrets.EC2_USER }}     # ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           port: 22
-          envs: SERVER_DIR
+          envs: SERVER_DIR                      # ← 원격으로 env 전달
           script: |
             set -euxo pipefail
             sudo mkdir -p "$SERVER_DIR/upload"
@@ -59,7 +59,7 @@ jobs:
             sudo chmod 755 /home/ubuntu /home/ubuntu/BE
             ls -ld /home/ubuntu /home/ubuntu/BE /home/ubuntu/BE/upload
 
-      # 🔹 JAR 업로드 (경로를 확실히 지정 + 디버그 켜기)
+      # JAR 업로드: 디렉터리 평탄화(strip_components: 2)
       - name: Copy JAR to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -67,12 +67,13 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           port: 22
-          source: "build/libs/*.jar"         # ← env 대신 확실한 글롭 사용
+          source: "build/libs/*.jar"
           target: "${{ env.SERVER_DIR }}/upload"
           overwrite: true
-          debug: true                        # ← 문제 시 원인 출력
+          strip_components: 2    # build/libs/ 제거 → upload/xxx.jar 로 복사
+          # debug: true
 
-      # ✅ 업로드 검증: 원격에서 파일 존재 확인
+      # 업로드 검증(선택이지만 추천)
       - name: Verify upload on EC2
         uses: appleboy/ssh-action@v1.2.0
         env:
@@ -87,17 +88,17 @@ jobs:
             set -euxo pipefail
             echo "== remote upload dir listing =="
             ls -l "$SERVER_DIR/upload"
-            echo "== latest jar =="
+            echo "== latest jar(flat) =="
             ls -t "$SERVER_DIR"/upload/*.jar | head -n 1
 
-      # 🔹 배치 + 재기동 (nohup)
+      # 배치 + 재기동 (nohup)
       - name: Restart app on EC2 (nohup)
         uses: appleboy/ssh-action@v1.2.0
         env:
           SERVER_DIR: ${{ env.SERVER_DIR }}
           APP_JAR: ${{ env.APP_JAR }}
           SPRING_PROFILES_ACTIVE: ${{ secrets.SPRING_PROFILES_ACTIVE }} # dev/prod
-          JAVA_OPTS: "-Xms256m -Xmx512m"
+          JAVA_OPTS: "-Xms256m -Xmx512m"  # 필요 시 조절
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
