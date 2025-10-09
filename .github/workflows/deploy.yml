@@ -30,7 +30,16 @@ jobs:
         run: |
           chmod +x ./gradlew
           ./gradlew --no-daemon clean bootJar -x test
-          echo "JAR_PATH=$(ls -1 build/libs/*.jar | head -n 1)" >> $GITHUB_ENV
+
+      # ✅ 아티팩트 확인 (런너에서 jar가 실제로 있는지)
+      - name: Verify artifact on runner
+        run: |
+          echo "== build/libs listing =="
+          ls -l build/libs || true
+          echo "== pick one jar =="
+          JAR=$(ls -t build/libs/*.jar | head -n 1)
+          echo "Picked: $JAR"
+          test -f "$JAR"
 
       # 🔹 사전 준비: 디렉터리/권한 보장
       - name: Prepare directories on EC2
@@ -39,10 +48,10 @@ jobs:
           SERVER_DIR: ${{ env.SERVER_DIR }}
         with:
           host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}  # 보통 ubuntu
+          username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           port: 22
-          envs: SERVER_DIR                 # ← 원격 쉘로 env 전달
+          envs: SERVER_DIR
           script: |
             set -euxo pipefail
             sudo mkdir -p "$SERVER_DIR/upload"
@@ -50,7 +59,7 @@ jobs:
             sudo chmod 755 /home/ubuntu /home/ubuntu/BE
             ls -ld /home/ubuntu /home/ubuntu/BE /home/ubuntu/BE/upload
 
-      # 🔹 JAR 업로드 (target=디렉터리)
+      # 🔹 JAR 업로드 (경로를 확실히 지정 + 디버그 켜기)
       - name: Copy JAR to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -58,10 +67,28 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           port: 22
-          source: "${{ env.JAR_PATH }}"
+          source: "build/libs/*.jar"         # ← env 대신 확실한 글롭 사용
           target: "${{ env.SERVER_DIR }}/upload"
           overwrite: true
-          # debug: true
+          debug: true                        # ← 문제 시 원인 출력
+
+      # ✅ 업로드 검증: 원격에서 파일 존재 확인
+      - name: Verify upload on EC2
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          SERVER_DIR: ${{ env.SERVER_DIR }}
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          envs: SERVER_DIR
+          script: |
+            set -euxo pipefail
+            echo "== remote upload dir listing =="
+            ls -l "$SERVER_DIR/upload"
+            echo "== latest jar =="
+            ls -t "$SERVER_DIR"/upload/*.jar | head -n 1
 
       # 🔹 배치 + 재기동 (nohup)
       - name: Restart app on EC2 (nohup)
@@ -76,12 +103,9 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           port: 22
-          envs: SERVER_DIR,APP_JAR,SPRING_PROFILES_ACTIVE,JAVA_OPTS  # ← 원격 쉘로 env 전달
+          envs: SERVER_DIR,APP_JAR,SPRING_PROFILES_ACTIVE,JAVA_OPTS
           script: |
             set -euo pipefail
-
-            echo "[prep] ensure upload dir"
-            mkdir -p "$SERVER_DIR/upload"
 
             echo "[pick] latest jar"
             JAR=$(ls -t "$SERVER_DIR"/upload/*.jar | head -n 1 || true)
