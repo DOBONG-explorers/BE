@@ -17,6 +17,7 @@ repositories {
     mavenCentral()
 }
 
+
 dependencies {
     // --- Web (MVC 서버: 톰캣) ---
     implementation 'org.springframework.boot:spring-boot-starter-web'
