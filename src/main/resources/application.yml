@@ -16,3 +16,11 @@ spring:
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
+
+server:
+  address: 0.0.0.0
+
+logging:
+  level:
+    root: INFO
+    org.hibernate.SQL: DEBUG
