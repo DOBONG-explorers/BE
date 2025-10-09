@@ -145,3 +145,4 @@ jobs:
             echo "Health check failed ❌ (tail app.log)"
             tail -n 200 app.log || true
             exit 1
+
