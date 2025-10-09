@@ -2,8 +2,8 @@ name: Deploy (Simple JAR over SSH)
 
 on:
   push:
-    branches: [ main ]          # ← main push 시 자동 실행
-  workflow_dispatch: {}         # ← 수동 실행도 가능
+    branches: [ main ]          # main push 시 자동 실행
+  workflow_dispatch: {}         # 수동 실행도 가능
 
 env:
   SERVER_DIR: /home/ubuntu/BE   # EC2의 프로젝트 디렉터리
@@ -54,6 +54,7 @@ jobs:
           port: 22
           script: |
             set -e
+            mkdir -p "${{ env.SERVER_DIR }}"
             cd "${{ env.SERVER_DIR }}"
 
             echo "[stop] kill old process if running"
@@ -64,6 +65,13 @@ jobs:
             nohup java -jar -Dspring.profiles.active=${SPRING_PROFILES_ACTIVE} "${{ env.APP_JAR }}" > app.log 2>&1 &
 
             echo "[check] wait & probe health"
-            sleep 4
-            curl -fsS http://127.0.0.1:8080/actuator/health || (echo "Health check failed"; tail -n 200 app.log; exit 1)
-            echo "Deployed & healthy ✅"
+            # 부팅 여유
+            for i in 1 2 3 4 5; do
+              if curl -fsS http://127.0.0.1:8080/actuator/health >/dev/null; then
+                echo "Deployed & healthy ✅"; exit 0
+              fi
+              echo "waiting... ($i/5)"; sleep 3
+            done
+            echo "Health check failed"
+            tail -n 200 app.log
+            exit 1
