@@ -31,35 +31,41 @@ jobs:
           chmod +x ./gradlew
           ./gradlew --no-daemon clean bootJar -x test
 
-      # 런너에서 산출물 존재 확인(디버깅 도움)
       - name: Verify artifact on runner
         run: |
-          echo "== build/libs listing =="
-          ls -l build/libs || true
-          echo "== pick one jar =="
-          JAR=$(ls -t build/libs/*.jar | head -n 1)
-          echo "Picked: $JAR"
-          test -f "$JAR"
+          ls -l build/libs
+          ls -t build/libs/*.jar | head -n 1
 
-      # 사전 준비: 디렉터리/권한 보장 (root 생성 폴더 재발 방지)
-      - name: Prepare directories on EC2
+      # 서버 준비: 디렉토리 보장 + .env 생성(ENV 시크릿 내용 저장)
+      - name: Prepare server & write .env
         uses: appleboy/ssh-action@v1.2.0
         env:
           SERVER_DIR: ${{ env.SERVER_DIR }}
+          ENV: ${{ secrets.ENV }}  # ← 멀티라인 시크릿 (key=value 줄들)
         with:
           host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}     # ubuntu
+          username: ${{ secrets.EC2_USER }}   # ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           port: 22
-          envs: SERVER_DIR                      # ← 원격으로 env 전달
+          envs: SERVER_DIR,ENV
           script: |
-            set -euxo pipefail
+            set -euo pipefail
             sudo mkdir -p "$SERVER_DIR/upload"
             sudo chown -R "${USER}:${USER}" "$SERVER_DIR"
             sudo chmod 755 /home/ubuntu /home/ubuntu/BE
-            ls -ld /home/ubuntu /home/ubuntu/BE /home/ubuntu/BE/upload
 
-      # JAR 업로드: 디렉터리 평탄화(strip_components: 2)
+            # 멀티라인 ENV → .env 저장 (CRLF 제거)
+            if [ -n "${ENV:-}" ]; then
+              printf "%s\n" "$ENV" > "$SERVER_DIR/.env.tmp"
+              tr -d '\r' < "$SERVER_DIR/.env.tmp" > "$SERVER_DIR/.env"
+              rm -f "$SERVER_DIR/.env.tmp"
+              chmod 600 "$SERVER_DIR/.env"
+            fi
+
+            ls -ld "$SERVER_DIR" "$SERVER_DIR/upload"
+            # .env 내용은 노출하지 않음
+
+      # JAR 업로드 (build/libs/ 제거해서 upload/ 바로 아래에 복사)
       - name: Copy JAR to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -70,10 +76,9 @@ jobs:
           source: "build/libs/*.jar"
           target: "${{ env.SERVER_DIR }}/upload"
           overwrite: true
-          strip_components: 2    # build/libs/ 제거 → upload/xxx.jar 로 복사
+          strip_components: 2
           # debug: true
 
-      # 업로드 검증(선택이지만 추천)
       - name: Verify upload on EC2
         uses: appleboy/ssh-action@v1.2.0
         env:
@@ -85,20 +90,18 @@ jobs:
           port: 22
           envs: SERVER_DIR
           script: |
-            set -euxo pipefail
-            echo "== remote upload dir listing =="
+            set -euo pipefail
             ls -l "$SERVER_DIR/upload"
-            echo "== latest jar(flat) =="
             ls -t "$SERVER_DIR"/upload/*.jar | head -n 1
 
-      # 배치 + 재기동 (nohup)
+      # 배치 + 재기동 (nohup) — .env 로드 후 실행
       - name: Restart app on EC2 (nohup)
         uses: appleboy/ssh-action@v1.2.0
         env:
           SERVER_DIR: ${{ env.SERVER_DIR }}
           APP_JAR: ${{ env.APP_JAR }}
           SPRING_PROFILES_ACTIVE: ${{ secrets.SPRING_PROFILES_ACTIVE }} # dev/prod
-          JAVA_OPTS: "-Xms256m -Xmx512m"  # 필요 시 조절
+          JAVA_OPTS: "-Xms256m -Xmx512m"
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
@@ -123,17 +126,20 @@ jobs:
             mv -f "$JAR" "$SERVER_DIR/$APP_JAR"
             chmod +x "$SERVER_DIR/$APP_JAR"
 
-            echo "[start] nohup spring (profile=$SPRING_PROFILES_ACTIVE)"
+            echo "[start] load .env and run"
             cd "$SERVER_DIR"
+            set -a
+            [ -f ".env" ] && . ".env"
+            set +a
             nohup java $JAVA_OPTS -jar -Dspring.profiles.active="$SPRING_PROFILES_ACTIVE" "$APP_JAR" > app.log 2>&1 &
 
             echo "[health] wait & probe actuator"
-            for i in {1..10}; do
+            for i in {1..12}; do
               if curl -fsS http://127.0.0.1:8080/actuator/health >/dev/null; then
                 echo "Deployed & healthy ✅"
                 exit 0
               fi
-              echo "waiting... ($i/10)"; sleep 3
+              echo "waiting... ($i/12)"; sleep 3
             done
 
             echo "Health check failed ❌ (tail app.log)"
