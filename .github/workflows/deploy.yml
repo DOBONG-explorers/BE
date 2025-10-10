@@ -36,27 +36,27 @@ jobs:
           ls -l build/libs
           ls -t build/libs/*.jar | head -n 1
 
-      # 서버 준비: 디렉토리 보장 + .env 생성(ENV 시크릿 내용 저장)
+      # 서버 준비: 디렉토리 보장 + .env 생성(APP_ENV 시크릿 내용 저장)
       - name: Prepare server & write .env
         uses: appleboy/ssh-action@v1.2.0
         env:
           SERVER_DIR: ${{ env.SERVER_DIR }}
-          ENV: ${{ secrets.ENV }}  # ← 멀티라인 시크릿 (key=value 줄들)
+          APP_ENV: ${{ secrets.APP_ENV }}   # ✅ ENV 대신 APP_ENV 사용
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}   # ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           port: 22
-          envs: SERVER_DIR,ENV
+          envs: SERVER_DIR,APP_ENV
           script: |
             set -euo pipefail
             sudo mkdir -p "$SERVER_DIR/upload"
             sudo chown -R "${USER}:${USER}" "$SERVER_DIR"
             sudo chmod 755 /home/ubuntu /home/ubuntu/BE
 
-            # 멀티라인 ENV → .env 저장 (CRLF 제거)
-            if [ -n "${ENV:-}" ]; then
-              printf "%s\n" "$ENV" > "$SERVER_DIR/.env.tmp"
+            # 멀티라인 APP_ENV → .env 저장 (CRLF 제거)
+            if [ -n "${APP_ENV:-}" ]; then
+              printf "%s\n" "$APP_ENV" > "$SERVER_DIR/.env.tmp"
               tr -d '\r' < "$SERVER_DIR/.env.tmp" > "$SERVER_DIR/.env"
               rm -f "$SERVER_DIR/.env.tmp"
               chmod 600 "$SERVER_DIR/.env"
