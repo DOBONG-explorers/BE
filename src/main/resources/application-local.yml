@@ -42,6 +42,18 @@ google:
     language: ko
     region: KR
 
+aws:
+  region: ${AWS_REGION}
+  s3:
+    bucket: ${AWS_S3_BUCKET}         # 실제 버킷명
+    key-prefix: ${AWS_S3_KEY_PREFIX}             # 선택(없어도 됨)
+    presign-exp-minutes: 10
+  credentials:
+    access-key: ${AWS_ACCESS_KEY_ID}
+    secret-key: ${AWS_SECRET_ACCESS_KEY}
+app:
+  default-profile-image: ${AWS_IMAGE_DEFAULT}
+
 server:
   port: 8080
 
