@@ -1,5 +1,6 @@
 name: Deploy (Simple JAR over SSH)
 
+
 on:
   push:
     branches: [ main ]
