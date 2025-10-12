@@ -1,6 +1,5 @@
 name: Deploy (Simple JAR over SSH)
 
-
 on:
   push:
     branches: [ main ]
@@ -37,15 +36,15 @@ jobs:
           ls -l build/libs
           ls -t build/libs/*.jar | head -n 1
 
-      # 서버 준비: 디렉토리 보장 + .env 생성(APP_ENV 시크릿 -> .env)
+      # 서버 준비: 디렉토리 보장 + .env 생성(APP_ENV 시크릿 → .env)
       - name: Prepare server & write .env
         uses: appleboy/ssh-action@v1.2.0
         env:
           SERVER_DIR: ${{ env.SERVER_DIR }}
-          APP_ENV: ${{ secrets.APP_ENV }}   # ✅ 멀티라인 .env 내용
+          APP_ENV: ${{ secrets.APP_ENV }}   # 멀티라인 .env 전체 내용
         with:
           host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}   # ubuntu
+          username: ${{ secrets.EC2_USER }}   # 보통 ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           port: 22
           envs: SERVER_DIR,APP_ENV
@@ -76,6 +75,7 @@ jobs:
           overwrite: true
           strip_components: 2
 
+      # 업로드 확인
       - name: Verify upload on EC2
         uses: appleboy/ssh-action@v1.2.0
         env:
@@ -86,10 +86,10 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           port: 22
           envs: SERVER_DIR
-        script: |
-          set -euo pipefail
-          ls -l "$SERVER_DIR/upload"
-          ls -t "$SERVER_DIR"/upload/*.jar | head -n 1
+          script: |
+            set -euo pipefail
+            ls -l "$SERVER_DIR/upload"
+            ls -t "$SERVER_DIR"/upload/*.jar | head -n 1
 
       # 배치 + 재기동 — systemd 관리 (nohup 제거)
       - name: Restart app on EC2 (systemd)
