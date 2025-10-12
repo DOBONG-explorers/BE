@@ -7,6 +7,7 @@ spring:
     url: ${DEV_DB_URL}
     username: ${DEV_DB_USER}
     password: ${DEV_DB_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
 
   jwt:
     access:
@@ -22,18 +23,12 @@ spring:
   dobong:
     api:
       base-url: ${DOBONG_HERI}
-      api-key: ${API_KEY}
+      api-key: ${API_KEY}     # ← 주의: 'api-key' 이름 그대로
       cont-code: ${CONT_CODE}
 
 
-  kakao:
-    rest-key: ${KAKAO_REST_KEY}
-
-
-
-
 kakao:
-  rest-api-key: ${KAKAO_AUTH_API_KEY}       # 카카오 REST API Key (aud 검증용)
+  rest-api-key: ${KAKAO_AUTH_API_KEY}
   oidc:
     issuer: https://kauth.kakao.com
     jwks-uri: https://kauth.kakao.com/.well-known/jwks.json
@@ -43,15 +38,25 @@ google:
   oidc:
     issuer: https://accounts.google.com
     jwks-uri: https://www.googleapis.com/oauth2/v3/certs
-
   places:
-    api-key: ${GOOGLE_PLACES_API_KEY}   # 환경변수로 주입 권장
+    api-key: ${GOOGLE_PLACES_API_KEY}
     language: ko
     region: KR
 
-
+aws:
+  region: ${AWS_REGION}
+  s3:
+    bucket: ${AWS_S3_BUCKET}         # 실제 버킷명
+    key-prefix: ${AWS_S3_KEY_PREFIX}             # 선택(없어도 됨)
+    presign-exp-minutes: 10
+  credentials:
+    access-key: ${AWS_ACCESS_KEY_ID}
+    secret-key: ${AWS_SECRET_ACCESS_KEY}
+app:
+  default-profile-image: ${AWS_IMAGE_DEFAULT}
 
 logging:
   level:
     root: INFO
     org.hibernate.SQL: DEBUG
+    org.springframework.boot.autoconfigure.jdbc: DEBUG

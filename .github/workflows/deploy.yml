@@ -1,0 +1,158 @@
+name: Deploy (Simple JAR over SSH)
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch: {}
+
+env:
+  SERVER_DIR: /home/ubuntu/BE
+  APP_JAR: app.jar
+
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # JDK & Gradle
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Set up Gradle (cache)
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Build Boot JAR
+        run: |
+          chmod +x ./gradlew
+          ./gradlew --no-daemon clean bootJar -x test
+
+      - name: Verify artifact on runner
+        run: |
+          ls -l build/libs
+          ls -t build/libs/*.jar | head -n 1
+
+      # 서버 준비: 디렉토리 보장 + .env 생성(APP_ENV 시크릿 내용 저장)
+      - name: Prepare server & write .env
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          SERVER_DIR: ${{ env.SERVER_DIR }}
+          APP_ENV: ${{ secrets.APP_ENV }}   # ✅ ENV 대신 APP_ENV 사용
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}   # ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          envs: SERVER_DIR,APP_ENV
+          script: |
+            set -euo pipefail
+            sudo mkdir -p "$SERVER_DIR/upload"
+            sudo chown -R "${USER}:${USER}" "$SERVER_DIR"
+            sudo chmod 755 /home/ubuntu /home/ubuntu/BE
+
+            # 멀티라인 APP_ENV → .env 저장 (CRLF 제거)
+            if [ -n "${APP_ENV:-}" ]; then
+              printf "%s\n" "$APP_ENV" > "$SERVER_DIR/.env.tmp"
+              tr -d '\r' < "$SERVER_DIR/.env.tmp" > "$SERVER_DIR/.env"
+              rm -f "$SERVER_DIR/.env.tmp"
+              chmod 600 "$SERVER_DIR/.env"
+            fi
+
+            ls -ld "$SERVER_DIR" "$SERVER_DIR/upload"
+            # .env 내용은 노출하지 않음
+
+      # JAR 업로드
+      - name: Copy JAR to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          source: "build/libs/*.jar"
+          target: "${{ env.SERVER_DIR }}/upload"
+          overwrite: true
+          strip_components: 2
+
+      - name: Verify upload on EC2
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          SERVER_DIR: ${{ env.SERVER_DIR }}
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          envs: SERVER_DIR
+          script: |
+            set -euo pipefail
+            ls -l "$SERVER_DIR/upload"
+            ls -t "$SERVER_DIR"/upload/*.jar | head -n 1
+
+      # 배치 + 재기동 (nohup) — .env 로드 후 검증 + 실행
+      - name: Restart app on EC2 (nohup)
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          SERVER_DIR: ${{ env.SERVER_DIR }}
+          APP_JAR: ${{ env.APP_JAR }}
+          SPRING_PROFILES_ACTIVE: ${{ secrets.SPRING_PROFILES_ACTIVE }} # dev/prod
+          JAVA_OPTS: "-Xms256m -Xmx512m"
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          envs: SERVER_DIR,APP_JAR,SPRING_PROFILES_ACTIVE,JAVA_OPTS
+          script: |
+            set -euo pipefail
+
+            echo "[pick] latest jar"
+            JAR=$(ls -t "$SERVER_DIR"/upload/*.jar | head -n 1 || true)
+            if [ -z "${JAR:-}" ]; then
+              echo "No JAR found in $SERVER_DIR/upload"; exit 1
+            fi
+            echo "latest jar: $JAR"
+
+            echo "[stop] kill old process if running"
+            pkill -f "$SERVER_DIR/$APP_JAR" || true
+            sleep 2
+
+            echo "[deploy] move jar to $SERVER_DIR/$APP_JAR"
+            mv -f "$JAR" "$SERVER_DIR/$APP_JAR"
+            chmod +x "$SERVER_DIR/$APP_JAR"
+
+            echo "[start] load .env and validate required vars"
+            cd "$SERVER_DIR"
+            set -a
+            [ -f ".env" ] && . ".env"
+            set +a
+
+            # 필수값 검증 (비어 있으면 즉시 실패)
+            [ -z "${DEV_DB_URL:-}" ]       && { echo "❌ DEV_DB_URL empty";       exit 1; }
+            [ -z "${DEV_DB_USER:-}" ]      && { echo "❌ DEV_DB_USER empty";      exit 1; }
+            [ -z "${DEV_DB_PASSWORD:-}" ]  && { echo "❌ DEV_DB_PASSWORD empty";  exit 1; }
+
+            # 민감정보 마스킹 출력
+            MASKED_URL="$(printf '%s' "$DEV_DB_URL" | sed 's#//[^/@]*@#//***:***@#')"
+            echo "DEV_DB_URL (masked): $MASKED_URL"
+            echo "SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-<none>}"
+
+            echo "[run] start app with nohup"
+            nohup java $JAVA_OPTS -jar -Dspring.profiles.active="$SPRING_PROFILES_ACTIVE" "$APP_JAR" > app.log 2>&1 &
+
+            echo "[health] wait & probe actuator"
+            for i in {1..12}; do
+              if curl -fsS http://127.0.0.1:8080/actuator/health >/dev/null; then
+                echo "Deployed & healthy ✅"
+                exit 0
+              fi
+              echo "waiting... ($i/12)"; sleep 3
+            done
+
+            echo "Health check failed ❌ (tail app.log)"
+            tail -n 200 app.log || true
+            exit 1

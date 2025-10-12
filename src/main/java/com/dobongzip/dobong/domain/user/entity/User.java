@@ -44,6 +44,9 @@ public class User {
     @Column(name = "loginType")
     private LoginType loginType; // APP / GOOGLE / KAKAO
 
+    @Column(name = "profile_image_key", length = 512)
+    private String profileImageKey;
+
     private boolean profileCompleted;
 
     public void updateProfile(ProfileRequestDto request) {
@@ -69,4 +72,8 @@ public class User {
     public void setEmail(String email) {
         this.email = email;
     }
+    public void setProfileImageKey(String profileImageKey) {
+        this.profileImageKey = profileImageKey;
+    }
+
 }

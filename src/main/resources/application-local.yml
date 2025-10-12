@@ -26,12 +26,6 @@ spring:
       cont-code: ${CONT_CODE}
 
 
-  kakao:
-    rest-key: ${KAKAO_REST_KEY}
-
-
-
-
 kakao:
   rest-api-key: ${KAKAO_AUTH_API_KEY}       # 카카오 REST API Key (aud 검증용)
   oidc:
@@ -43,11 +37,22 @@ google:
   oidc:
     issuer: https://accounts.google.com
     jwks-uri: https://www.googleapis.com/oauth2/v3/certs
-
   places:
     api-key: ${GOOGLE_PLACES_API_KEY}   # 환경변수로 주입 권장
     language: ko
     region: KR
+
+aws:
+  region: ${AWS_REGION}
+  s3:
+    bucket: ${AWS_S3_BUCKET}         # 실제 버킷명
+    key-prefix: ${AWS_S3_KEY_PREFIX}             # 선택(없어도 됨)
+    presign-exp-minutes: 10
+  credentials:
+    access-key: ${AWS_ACCESS_KEY_ID}
+    secret-key: ${AWS_SECRET_ACCESS_KEY}
+app:
+  default-profile-image: ${AWS_IMAGE_DEFAULT}
 
 server:
   port: 8080
