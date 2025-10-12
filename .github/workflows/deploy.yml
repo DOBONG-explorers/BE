@@ -36,12 +36,12 @@ jobs:
           ls -l build/libs
           ls -t build/libs/*.jar | head -n 1
 
-      # 서버 준비: 디렉토리 보장 + .env 생성(APP_ENV 시크릿 내용 저장)
+      # 서버 준비: 디렉토리 보장 + .env 생성(APP_ENV 시크릿 -> .env)
       - name: Prepare server & write .env
         uses: appleboy/ssh-action@v1.2.0
         env:
           SERVER_DIR: ${{ env.SERVER_DIR }}
-          APP_ENV: ${{ secrets.APP_ENV }}   # ✅ ENV 대신 APP_ENV 사용
+          APP_ENV: ${{ secrets.APP_ENV }}   # ✅ 멀티라인 .env 내용
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}   # ubuntu
@@ -54,16 +54,13 @@ jobs:
             sudo chown -R "${USER}:${USER}" "$SERVER_DIR"
             sudo chmod 755 /home/ubuntu /home/ubuntu/BE
 
-            # 멀티라인 APP_ENV → .env 저장 (CRLF 제거)
             if [ -n "${APP_ENV:-}" ]; then
               printf "%s\n" "$APP_ENV" > "$SERVER_DIR/.env.tmp"
               tr -d '\r' < "$SERVER_DIR/.env.tmp" > "$SERVER_DIR/.env"
               rm -f "$SERVER_DIR/.env.tmp"
               chmod 600 "$SERVER_DIR/.env"
             fi
-
             ls -ld "$SERVER_DIR" "$SERVER_DIR/upload"
-            # .env 내용은 노출하지 않음
 
       # JAR 업로드
       - name: Copy JAR to EC2
@@ -88,25 +85,24 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           port: 22
           envs: SERVER_DIR
-          script: |
-            set -euo pipefail
-            ls -l "$SERVER_DIR/upload"
-            ls -t "$SERVER_DIR"/upload/*.jar | head -n 1
+        script: |
+          set -euo pipefail
+          ls -l "$SERVER_DIR/upload"
+          ls -t "$SERVER_DIR"/upload/*.jar | head -n 1
 
-      # 배치 + 재기동 (nohup) — .env 로드 후 검증 + 실행
-      - name: Restart app on EC2 (nohup)
+      # 배치 + 재기동 — systemd 관리 (nohup 제거)
+      - name: Restart app on EC2 (systemd)
         uses: appleboy/ssh-action@v1.2.0
         env:
           SERVER_DIR: ${{ env.SERVER_DIR }}
           APP_JAR: ${{ env.APP_JAR }}
           SPRING_PROFILES_ACTIVE: ${{ secrets.SPRING_PROFILES_ACTIVE }} # dev/prod
-          JAVA_OPTS: "-Xms256m -Xmx512m"
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           port: 22
-          envs: SERVER_DIR,APP_JAR,SPRING_PROFILES_ACTIVE,JAVA_OPTS
+          envs: SERVER_DIR,APP_JAR,SPRING_PROFILES_ACTIVE
           script: |
             set -euo pipefail
 
@@ -117,42 +113,39 @@ jobs:
             fi
             echo "latest jar: $JAR"
 
-            echo "[stop] kill old process if running"
-            pkill -f "$SERVER_DIR/$APP_JAR" || true
-            sleep 2
+            echo "[backup] keep previous jar"
+            if [ -f "$SERVER_DIR/$APP_JAR" ]; then
+              cp -f "$SERVER_DIR/$APP_JAR" "$SERVER_DIR/$APP_JAR.bak" || true
+            fi
 
-            echo "[deploy] move jar to $SERVER_DIR/$APP_JAR"
+            echo "[deploy] move jar -> $SERVER_DIR/$APP_JAR"
             mv -f "$JAR" "$SERVER_DIR/$APP_JAR"
             chmod +x "$SERVER_DIR/$APP_JAR"
 
-            echo "[start] load .env and validate required vars"
+            echo "[env] ensure .env exists (CRLF stripped)"
             cd "$SERVER_DIR"
-            set -a
-            [ -f ".env" ] && . ".env"
-            set +a
+            [ -f ".env" ] || { echo "SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev}" > .env; }
+            tr -d '\r' < .env > .env.tmp && mv .env.tmp .env
+            chmod 600 .env
 
-            # 필수값 검증 (비어 있으면 즉시 실패)
-            [ -z "${DEV_DB_URL:-}" ]       && { echo "❌ DEV_DB_URL empty";       exit 1; }
-            [ -z "${DEV_DB_USER:-}" ]      && { echo "❌ DEV_DB_USER empty";      exit 1; }
-            [ -z "${DEV_DB_PASSWORD:-}" ]  && { echo "❌ DEV_DB_PASSWORD empty";  exit 1; }
-
-            # 민감정보 마스킹 출력
-            MASKED_URL="$(printf '%s' "$DEV_DB_URL" | sed 's#//[^/@]*@#//***:***@#')"
-            echo "DEV_DB_URL (masked): $MASKED_URL"
-            echo "SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-<none>}"
-
-            echo "[run] start app with nohup"
-            nohup java $JAVA_OPTS -jar -Dspring.profiles.active="$SPRING_PROFILES_ACTIVE" "$APP_JAR" > app.log 2>&1 &
+            echo "[restart] systemctl restart myapp"
+            sudo systemctl daemon-reload
+            sudo systemctl restart myapp
 
             echo "[health] wait & probe actuator"
-            for i in {1..12}; do
+            for i in {1..20}; do
               if curl -fsS http://127.0.0.1:8080/actuator/health >/dev/null; then
                 echo "Deployed & healthy ✅"
                 exit 0
               fi
-              echo "waiting... ($i/12)"; sleep 3
+              echo "waiting... ($i/20)"; sleep 3
             done
 
-            echo "Health check failed ❌ (tail app.log)"
-            tail -n 200 app.log || true
+            echo "Health check failed ❌ — recent logs:"
+            sudo journalctl -u myapp -n 200 --no-pager || true
+            if [ -f "$SERVER_DIR/$APP_JAR.bak" ]; then
+              echo "[rollback] restore previous jar"
+              mv -f "$SERVER_DIR/$APP_JAR.bak" "$SERVER_DIR/$APP_JAR"
+              sudo systemctl restart myapp
+            fi
             exit 1
