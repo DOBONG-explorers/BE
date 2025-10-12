@@ -11,6 +11,7 @@ import com.dobongzip.dobong.global.security.jwt.AuthenticatedProvider;
 import com.dobongzip.dobong.global.security.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -18,7 +19,7 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @Tag(name = "로그인과 회원가입")
-@RequestMapping("/auth")
+@RequestMapping("/api/v1/auth")
 @RequiredArgsConstructor
 public class AuthController {
 
@@ -139,6 +140,23 @@ public class AuthController {
     public ResponseEntity<CommonResponse<String>> resetPassword(@RequestBody PasswordResetRequestDto dto) {
         authService.resetPassword(dto);
         return ResponseEntity.ok(CommonResponse.onSuccess("비밀번호가 재설정되었습니다."));
+    }
+
+    @Operation(summary = "로그아웃")
+    @PostMapping("/logout")
+    public ResponseEntity<CommonResponse<String>> logout(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            HttpServletResponse response
+    ) {
+        authService.logout(authorization, response);
+        return ResponseEntity.ok(CommonResponse.onSuccess("로그아웃 완료"));
+    }
+
+    @Operation(summary = "회원탈퇴(소프트 삭제)")
+    @DeleteMapping("/withdraw")
+    public ResponseEntity<CommonResponse<String>> withdraw() {
+        authService.withdrawSoft();
+        return ResponseEntity.ok(CommonResponse.onSuccess("회원탈퇴 완료"));
     }
 
 }

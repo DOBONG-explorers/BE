@@ -5,6 +5,8 @@ import com.dobongzip.dobong.global.security.enums.LoginType;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.LocalDateTime;
+
 @Entity
 @Getter
 @Builder
@@ -44,6 +46,9 @@ public class User {
     @Column(name = "loginType")
     private LoginType loginType; // APP / GOOGLE / KAKAO
 
+    @Column(name = "profile_image_key", length = 512)
+    private String profileImageKey;
+
     private boolean profileCompleted;
 
     public void updateProfile(ProfileRequestDto request) {
@@ -54,6 +59,18 @@ public class User {
         this.profileCompleted = true;
     }
 
+    @Column(name = "active", nullable = false)
+    private boolean active = true;
+
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
+
+    public boolean isDeleted() { return deletedAt != null; }
+
+    public void softDelete() {
+        this.active = false;
+        this.deletedAt = LocalDateTime.now();
+    }
 
     public void updatePassword(String encodedPassword) {
         this.password = encodedPassword;
@@ -69,4 +86,8 @@ public class User {
     public void setEmail(String email) {
         this.email = email;
     }
+    public void setProfileImageKey(String profileImageKey) {
+        this.profileImageKey = profileImageKey;
+    }
+
 }

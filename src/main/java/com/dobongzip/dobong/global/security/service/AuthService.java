@@ -4,18 +4,24 @@ import com.dobongzip.dobong.domain.user.entity.User;
 import com.dobongzip.dobong.domain.user.repository.UserRepository;
 import com.dobongzip.dobong.global.exception.BusinessException;
 import com.dobongzip.dobong.global.response.StatusCode;
+import com.dobongzip.dobong.global.s3.service.ImageService;
 import com.dobongzip.dobong.global.security.dto.auth.request.AppLoginRequestDto;
 import com.dobongzip.dobong.global.security.dto.auth.request.AppSignupRequestDto;
 import com.dobongzip.dobong.global.security.dto.auth.request.PasswordResetRequestDto;
 import com.dobongzip.dobong.global.security.dto.auth.request.ProfileRequestDto;
 import com.dobongzip.dobong.global.security.dto.auth.response.LoginResponseDto;
 import com.dobongzip.dobong.global.security.enums.LoginType;
+import com.dobongzip.dobong.global.security.jwt.AuthenticatedProvider;
 import com.dobongzip.dobong.global.security.util.JwtUtil;
 import com.dobongzip.dobong.global.security.util.PasswordValidator;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Duration;
+import java.time.Instant;
 
 @Service
 @RequiredArgsConstructor
@@ -26,7 +32,10 @@ public class AuthService {
     private final JwtUtil jwtUtil;
     private final KakaoOidcService kakaoOidcService;
     private final GoogleOidcService googleOidcService;
-
+    private final JwtBlacklistService jwtBlacklistService;
+    private final JwtExpiryService jwtExpiryService;
+    private final AuthenticatedProvider authenticatedProvider;
+    private final ImageService imageService;
 
     // 일반 로그인
     @Transactional(readOnly = true)
@@ -149,4 +158,50 @@ public class AuthService {
         return new LoginResponseDto(token, user.isProfileCompleted(), user.getName(), user.getNickname(), LoginType.GOOGLE);
     }
 
+
+    /** 로그아웃: Access 토큰 블랙리스트 등록 */
+    @Transactional
+    public void logout(String authorizationHeader, HttpServletResponse response) {
+        // 로그인 사용자 존재 보장
+        authenticatedProvider.getCurrentUser();
+
+        // 1) Access 토큰 파싱
+        String accessToken = null;
+        if (authorizationHeader != null && authorizationHeader.startsWith("Bearer ")) {
+            accessToken = authorizationHeader.substring(7).trim(); // ★ trim
+        }
+        if (accessToken != null && !accessToken.isBlank()) {
+            try {
+                var exp = jwtExpiryService.getExpiration(accessToken);
+                var ttl = java.time.Duration.between(java.time.Instant.now(), exp);
+                // ★ ttl 최소 1초 보정은 JwtBlacklistService에서 최종 보정
+                jwtBlacklistService.block(accessToken, ttl);
+                System.out.println("[LOGOUT] blacklisted suffix="
+                        + accessToken.substring(Math.max(0, accessToken.length()-16))
+                        + " ttl=" + Math.max(1, ttl.getSeconds()) + "s");
+            } catch (Exception e) {
+                // ★ 파싱 실패(만료/시크릿 mismatch)여도 5분 차단 — 동작 점검용
+                jwtBlacklistService.block(accessToken, java.time.Duration.ofMinutes(5));
+                System.out.println("[LOGOUT] parse fail -> fallback 5m; suffix="
+                        + accessToken.substring(Math.max(0, accessToken.length()-16))
+                        + " err=" + e.getMessage());
+            }
+        }
+    }
+
+    /** 회원탈퇴(소프트 삭제): 비번 재확인 없이 처리 */
+    @Transactional
+    public void withdrawSoft() {
+        User user = authenticatedProvider.getCurrentUser();
+
+        // 프로필 이미지 정리
+        imageService.removeProfileImage(user);
+
+        // 이메일/닉네임 치환(유니크 충돌 방지)
+        user.setNickname("탈퇴회원");
+        user.setEmail(user.getId() + "+deleted@" + user.getLoginType().name().toLowerCase() + ".invalid");
+
+        // 소프트 삭제 마킹 (active=false, deletedAt=now)
+        user.softDelete();
+    }
 }
