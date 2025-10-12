@@ -5,6 +5,8 @@ import com.dobongzip.dobong.global.security.enums.LoginType;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.LocalDateTime;
+
 @Entity
 @Getter
 @Builder
@@ -57,6 +59,18 @@ public class User {
         this.profileCompleted = true;
     }
 
+    @Column(name = "active", nullable = false)
+    private boolean active = true;
+
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
+
+    public boolean isDeleted() { return deletedAt != null; }
+
+    public void softDelete() {
+        this.active = false;
+        this.deletedAt = LocalDateTime.now();
+    }
 
     public void updatePassword(String encodedPassword) {
         this.password = encodedPassword;

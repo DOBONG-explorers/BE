@@ -14,6 +14,13 @@ spring:
       expiration: ${JWT_EXPIRATION}
     secret: ${JWT_SECRET_KEY}
 
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
+      password: ${REDIS_PASSWORD}
+      timeout: 2000
+
   seoul:
     openapi:
       key: ${DOBONG_EVENT}

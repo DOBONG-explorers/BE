@@ -30,7 +30,7 @@ public class SecurityConfig {
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         // 공개
-                        .requestMatchers("/auth/**", "/swagger-ui/**", "/v3/api-docs/**", "/api/v1/mainpage/**").permitAll()
+                        .requestMatchers("/api/v1/auth/**", "/swagger-ui/**", "/v3/api-docs/**", "/api/v1/mainpage/**").permitAll()
                         .requestMatchers(HttpMethod.GET,
                                 "/api/v1/places/dobong",
                                 "/api/v1/places/*",              // 상세
@@ -46,6 +46,9 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST,   "/api/v1/places/*/reviews").authenticated()
                         .requestMatchers(HttpMethod.PUT,    "/api/v1/places/*/reviews/*").authenticated()
                         .requestMatchers(HttpMethod.DELETE, "/api/v1/places/*/reviews/*").authenticated()
+
+                        .requestMatchers("/api/v1/mypage/**").authenticated()
+
 
                         // 프리플라이트 허용 (브라우저 호출이라면 필수)
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
