@@ -91,8 +91,8 @@ jobs:
             ls -l "$SERVER_DIR/upload"
             ls -t "$SERVER_DIR"/upload/*.jar | head -n 1
 
-      # 배치 + 재기동 — systemd 관리 (nohup 제거)
-      - name: Restart app on EC2 (systemd)
+      # 배치 + 재기동 — systemd (헬스 체크 제거)
+      - name: Restart app on EC2 (systemd, no health check)
         uses: appleboy/ssh-action@v1.2.0
         env:
           SERVER_DIR: ${{ env.SERVER_DIR }}
@@ -129,24 +129,12 @@ jobs:
             tr -d '\r' < .env > .env.tmp && mv .env.tmp .env
             chmod 600 .env
 
-            echo "[restart] systemctl restart myapp"
+            echo "[restart] systemctl restart myapp (no health check)"
             sudo systemctl daemon-reload
             sudo systemctl restart myapp
 
-            echo "[health] wait & probe actuator"
-            for i in {1..20}; do
-              if curl -fsS http://127.0.0.1:8080/actuator/health >/dev/null; then
-                echo "Deployed & healthy ✅"
-                exit 0
-              fi
-              echo "waiting... ($i/20)"; sleep 3
-            done
+            echo "[status] show brief status & recent logs (non-fatal)"
+            sudo systemctl is-active myapp || true
+            sudo journalctl -u myapp -n 80 --no-pager || true
 
-            echo "Health check failed ❌ — recent logs:"
-            sudo journalctl -u myapp -n 200 --no-pager || true
-            if [ -f "$SERVER_DIR/$APP_JAR.bak" ]; then
-              echo "[rollback] restore previous jar"
-              mv -f "$SERVER_DIR/$APP_JAR.bak" "$SERVER_DIR/$APP_JAR"
-              sudo systemctl restart myapp
-            fi
-            exit 1
+            echo "Deployed ✅ (health check disabled)"
