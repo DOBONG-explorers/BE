@@ -31,6 +31,7 @@ public class MypageController {
         return ResponseEntity.ok(CommonResponse.onSuccess(response));
     }
 
+
     @Operation(summary = "프로필 이미지 조회")
     @GetMapping("/profile-image")
     public ResponseEntity<CommonResponse<ImageUrlResponseDto>> getProfileImage() {
