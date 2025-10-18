@@ -18,6 +18,7 @@ public enum StatusCode {
     // ── 공통 요청/검증 ────────────────────────────────────────────────────────
     INVALID_REQUEST(HttpStatus.BAD_REQUEST, "COMMON4001", "잘못된 요청입니다."),
     INVALID_DATE_FORMAT(HttpStatus.BAD_REQUEST, "COMMON4002", "날짜 형식이 올바르지 않습니다. (yyyy-MM-dd)"),
+    RESOURCE_NOT_FOUND(HttpStatus.NOT_FOUND, "COMMON404", "요청하신 자원을 찾을 수 없습니다."),
 
     // ── 리뷰 ─────────────────────────────────────────────────────────────────
     REVIEW_ALREADY_EXISTS(HttpStatus.BAD_REQUEST, "REVIEW4001", "이미 이 장소에 작성한 리뷰가 있습니다. 수정 기능을 이용하세요."),
