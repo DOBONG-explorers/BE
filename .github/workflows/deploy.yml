@@ -12,7 +12,6 @@ env:
 jobs:
   build_and_deploy:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
 
@@ -36,6 +35,16 @@ jobs:
           ls -l build/libs
           ls -t build/libs/*.jar | head -n 1
 
+      # 최신 JAR 하나만 정확히 선택
+      - name: Pick latest jar
+        id: pick
+        shell: bash
+        run: |
+          set -euo pipefail
+          JAR=$(ls -t build/libs/*.jar | head -n 1)
+          echo "jar=$JAR" >> "$GITHUB_OUTPUT"
+          echo "Picked: $JAR"
+
       # 서버 준비: 디렉토리 보장 + .env 생성(APP_ENV 시크릿 → .env)
       - name: Prepare server & write .env
         uses: appleboy/ssh-action@v1.2.0
@@ -44,7 +53,7 @@ jobs:
           APP_ENV: ${{ secrets.APP_ENV }}   # 멀티라인 .env 전체 내용
         with:
           host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}   # 보통 ubuntu
+          username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           port: 22
           envs: SERVER_DIR,APP_ENV
@@ -54,15 +63,23 @@ jobs:
             sudo chown -R "${USER}:${USER}" "$SERVER_DIR"
             sudo chmod 755 /home/ubuntu /home/ubuntu/BE
 
+            # .env 갱신(있으면 유지, 시크릿이 넘어오면 덮어씀), CRLF 제거
             if [ -n "${APP_ENV:-}" ]; then
               printf "%s\n" "$APP_ENV" > "$SERVER_DIR/.env.tmp"
               tr -d '\r' < "$SERVER_DIR/.env.tmp" > "$SERVER_DIR/.env"
               rm -f "$SERVER_DIR/.env.tmp"
               chmod 600 "$SERVER_DIR/.env"
+            elif [ ! -f "$SERVER_DIR/.env" ]; then
+              echo "SPRING_PROFILES_ACTIVE=dev" > "$SERVER_DIR/.env"
+              chmod 600 "$SERVER_DIR/.env"
+            else
+              tr -d '\r' < "$SERVER_DIR/.env" > "$SERVER_DIR/.env.tmp" && mv "$SERVER_DIR/.env.tmp" "$SERVER_DIR/.env"
+              chmod 600 "$SERVER_DIR/.env"
             fi
+
             ls -ld "$SERVER_DIR" "$SERVER_DIR/upload"
 
-      # JAR 업로드
+      # JAR 업로드 (단일 파일, strip_components 제거)
       - name: Copy JAR to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -70,10 +87,9 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           port: 22
-          source: "build/libs/*.jar"
+          source: "${{ steps.pick.outputs.jar }}"
           target: "${{ env.SERVER_DIR }}/upload"
           overwrite: true
-          strip_components: 2
 
       # 업로드 확인
       - name: Verify upload on EC2
@@ -88,31 +104,33 @@ jobs:
           envs: SERVER_DIR
           script: |
             set -euo pipefail
-            ls -l "$SERVER_DIR/upload"
+            ls -lt "$SERVER_DIR/upload" | head -n 5
             ls -t "$SERVER_DIR"/upload/*.jar | head -n 1
 
-      # 배치 + 재기동 — systemd (헬스 체크 제거)
-      - name: Restart app on EC2 (systemd, no health check)
+      # 배치 + 재기동 — systemd (실패 시 액션도 실패)
+      - name: Restart app on EC2 (systemd, strong checks)
         uses: appleboy/ssh-action@v1.2.0
         env:
           SERVER_DIR: ${{ env.SERVER_DIR }}
           APP_JAR: ${{ env.APP_JAR }}
-          SPRING_PROFILES_ACTIVE: ${{ secrets.SPRING_PROFILES_ACTIVE }} # dev/prod
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           port: 22
-          envs: SERVER_DIR,APP_JAR,SPRING_PROFILES_ACTIVE
+          envs: SERVER_DIR,APP_JAR
           script: |
             set -euo pipefail
 
-            echo "[pick] latest jar"
-            JAR=$(ls -t "$SERVER_DIR"/upload/*.jar | head -n 1 || true)
-            if [ -z "${JAR:-}" ]; then
-              echo "No JAR found in $SERVER_DIR/upload"; exit 1
-            fi
+            echo "[pick] latest uploaded jar"
+            JAR=$(ls -t "$SERVER_DIR"/upload/*.jar | head -n 1)
+            [ -n "$JAR" ] || { echo "No JAR found in $SERVER_DIR/upload"; exit 1; }
             echo "latest jar: $JAR"
+
+            echo "[stop rogue] kill any orphaned app.jar"
+            sudo systemctl stop myapp || true
+            pkill -f "$SERVER_DIR/$APP_JAR" 2>/dev/null || true
+            pkill -f "/home/ubuntu/BE/app.jar" 2>/dev/null || true
 
             echo "[backup] keep previous jar"
             if [ -f "$SERVER_DIR/$APP_JAR" ]; then
@@ -123,18 +141,27 @@ jobs:
             mv -f "$JAR" "$SERVER_DIR/$APP_JAR"
             chmod +x "$SERVER_DIR/$APP_JAR"
 
-            echo "[env] ensure .env exists (CRLF stripped)"
+            echo "[hash] verify deployed jar matches uploaded one"
+            DEPLOY_SHA=$(sha256sum "$SERVER_DIR/$APP_JAR" | awk '{print $1}')
+            echo "DEPLOY_SHA=$DEPLOY_SHA"
+
+            echo "[env] ensure .env is unix-safe"
             cd "$SERVER_DIR"
-            [ -f ".env" ] || { echo "SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev}" > .env; }
             tr -d '\r' < .env > .env.tmp && mv .env.tmp .env
             chmod 600 .env
 
-            echo "[restart] systemctl restart myapp (no health check)"
+            echo "[restart] systemctl restart myapp"
             sudo systemctl daemon-reload
             sudo systemctl restart myapp
 
-            echo "[status] show brief status & recent logs (non-fatal)"
-            sudo systemctl is-active myapp || true
-            sudo journalctl -u myapp -n 80 --no-pager || true
+            echo "[assert] service must be active"
+            sudo systemctl is-active --quiet myapp || { 
+              echo "[ERROR] myapp inactive"; 
+              sudo journalctl -u myapp -n 300 --no-pager; 
+              exit 1; 
+            }
 
-            echo "Deployed ✅ (health check disabled)"
+            echo "[postcheck] recent logs"
+            sudo journalctl -u myapp -n 120 --no-pager || true
+
+            echo "Deployed ✅ (service active)"
