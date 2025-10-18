@@ -2,6 +2,9 @@ package com.dobongzip.dobong.domain.mainpage.controller;
 
 import com.dobongzip.dobong.domain.mainpage.dto.request.EventSearchRequest;
 import com.dobongzip.dobong.domain.mainpage.dto.response.EventDto;
+import com.dobongzip.dobong.domain.mainpage.dto.response.EventImageDto;
+import com.dobongzip.dobong.domain.mainpage.dto.response.EventListItemDto;
+import com.dobongzip.dobong.domain.mainpage.dto.response.HeritageListItemDto;
 import com.dobongzip.dobong.domain.mainpage.service.MainService;
 import com.dobongzip.dobong.global.response.CommonResponse;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -22,31 +25,62 @@ public class MainController {
     private final MainService mainService;
 
     @Operation(
-            summary = "도봉구 행사 조회 (오늘 기본)",
-            description = "서울 문화행사 전수 데이터에서 '오늘 포함'되는 이벤트만 추려서, 자치구가 도봉구인 항목만 반환합니다. "
-                    + "date 파라미터가 없으면 서버 기준(KST) 오늘 날짜를 사용합니다."
+            summary = "도봉구 행사 이미지 리스트",
+            description = "도봉구 문화행사 중 이미지(MAIN_IMG)가 있는 항목만 반환합니다."
     )
-    @GetMapping("/dobong")
-    public ResponseEntity<CommonResponse<List<EventDto>>> getDobong(
+    @GetMapping("/dobong/images")
+    public ResponseEntity<CommonResponse<List<EventImageDto>>> getDobongEventImages(
             @RequestParam(required = false) String date
     ) {
         EventSearchRequest req = new EventSearchRequest();
         req.setDate(date);
-        return ResponseEntity.ok(CommonResponse.onSuccess(mainService.getDobongToday(req)));
+        return ResponseEntity.ok(CommonResponse.onSuccess(mainService.getDobongEventImages(req)));
     }
 
     @Operation(
-            summary = "도봉구 문화유산 조회",
-            description = "도봉구에서 제공하는 문화유산 개방 API를 호출해, "
-                    + "현재 보유한 문화유산 목록과 관련 정보를 JSON 형태로 반환합니다. "
-                    + "응답 데이터는 외부 공공 API 'CONT_DATA_ROW' 항목을 기반으로 합니다."
+            summary = "도봉구 행사 이름+날짜 리스트",
+            description = "행사명과 날짜만 포함된 간단 리스트를 반환합니다."
     )
-    @GetMapping("/heritage")
-    public ResponseEntity<CommonResponse<JsonNode>> getDobongHeritage() {
-        return ResponseEntity.ok(
-                CommonResponse.onSuccess(mainService.getDobongCulturalHeritage())
-        );
+    @GetMapping("/dobong/list")
+    public ResponseEntity<CommonResponse<List<EventListItemDto>>> listDobongEvents(
+            @RequestParam(required = false) String date
+    ) {
+        EventSearchRequest req = new EventSearchRequest();
+        req.setDate(date);
+        return ResponseEntity.ok(CommonResponse.onSuccess(mainService.listDobongEvents(req)));
     }
 
+    @Operation(
+            summary = "도봉구 행사 상세 조회",
+            description = "목록에서 받은 id로 단일 행사 정보를 EventDto로 반환합니다."
+    )
+    @GetMapping("/dobong/{id}")
+    public ResponseEntity<CommonResponse<EventDto>> getDobongEventDetail(
+            @PathVariable String id,
+            @RequestParam(required = false) String date
+    ) {
+        EventSearchRequest req = new EventSearchRequest();
+        req.setDate(date);
+        return ResponseEntity.ok(CommonResponse.onSuccess(mainService.getDobongEventDetailRaw(id, req)));
+    }
 
+    @Operation(
+            summary = "도봉구 문화유산 목록(사진+이름)",
+            description = "도봉구 문화유산을 사진과 이름만 묶어 간단 목록으로 반환합니다. 각 항목의 id는 상세조회용 식별자입니다."
+    )
+    @GetMapping("/heritage/list")
+    public ResponseEntity<CommonResponse<List<HeritageListItemDto>>> listHeritage() {
+        return ResponseEntity.ok(CommonResponse.onSuccess(mainService.listDobongHeritage()));
+    }
+
+    @Operation(
+            summary = "도봉구 문화유산 상세조회",
+            description = "목록에서 받은 id로 단일 문화유산의 상세 정보를 '원본 JSON' 그대로 반환합니다."
+    )
+    @GetMapping("/heritage/{id}")
+    public ResponseEntity<CommonResponse<JsonNode>> getHeritage(@PathVariable String id) {
+        return ResponseEntity.ok(
+                CommonResponse.onSuccess(mainService.getDobongHeritageDetailRaw(id))
+        );
+    }
 }
