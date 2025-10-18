@@ -6,6 +6,8 @@ import com.dobongzip.dobong.domain.mainpage.dto.response.EventImageDto;
 import com.dobongzip.dobong.domain.mainpage.dto.response.EventListItemDto;
 import com.dobongzip.dobong.domain.mainpage.dto.response.HeritageListItemDto;
 import com.dobongzip.dobong.domain.mainpage.service.MainService;
+import com.dobongzip.dobong.domain.map.dto.response.TopPlaceDto;
+import com.dobongzip.dobong.domain.map.service.PlaceService;
 import com.dobongzip.dobong.global.response.CommonResponse;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.swagger.v3.oas.annotations.Operation;
@@ -23,7 +25,7 @@ import java.util.List;
 public class MainController {
 
     private final MainService mainService;
-
+    private final PlaceService placeService;
     @Operation(
             summary = "도봉구 행사 이미지 리스트",
             description = "도봉구 문화행사 중 이미지(MAIN_IMG)가 있는 항목만 반환합니다."
@@ -82,5 +84,19 @@ public class MainController {
         return ResponseEntity.ok(
                 CommonResponse.onSuccess(mainService.getDobongHeritageDetailRaw(id))
         );
+    }
+
+    @Operation(
+            summary = "인기 TOP 장소",
+            description = "상세 조회수가 많은 순으로 정렬하여 상위 3개 장소를 반환합니다."
+    )
+    @GetMapping("/top")
+    public ResponseEntity<CommonResponse<List<TopPlaceDto>>> getTopPlaces(
+            @RequestParam double lat,
+            @RequestParam double lng,
+            @RequestParam(defaultValue = "3") int limit
+    ) {
+        var list = placeService.getTopPlaces(lat, lng, limit);
+        return ResponseEntity.ok(CommonResponse.onSuccess(list));
     }
 }
