@@ -90,7 +90,7 @@ jobs:
           source: "${{ steps.pick.outputs.jar }}"
           target: "${{ env.SERVER_DIR }}/upload/"
           overwrite: true
-          strip_components: 2   # build/libs 구조 제거 → upload/ 바로 아래에 JAR만 남김
+          strip_components: 2   # build/libs 제거 → upload/ 바로 아래에 JAR만 남김
 
       # 업로드 확인
       - name: Verify upload on EC2
@@ -103,13 +103,14 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           port: 22
           envs: SERVER_DIR
+          # 단순 존재/정렬 확인
           script: |
             set -euo pipefail
             echo "[verify] uploaded jars under $SERVER_DIR/upload"
             ls -lt "$SERVER_DIR/upload" | head -n 5
             ls -t "$SERVER_DIR"/upload/*.jar | head -n 1
 
-      # 배치 + 재기동 — systemd (실패 시 액션도 실패)
+      # 배치 + 재기동 — systemd (강한 검증 + 안전 종료)
       - name: Restart app on EC2 (systemd, strong checks)
         uses: appleboy/ssh-action@v1.2.0
         env:
@@ -129,10 +130,20 @@ jobs:
             [ -n "$JAR" ] || { echo "No JAR found in $SERVER_DIR/upload"; exit 1; }
             echo "latest jar: $JAR"
 
-            echo "[stop rogue] kill any orphaned app.jar"
+            echo "[stop rogue] kill only exact java -jar $APP_JAR (avoid killing SSH shell)"
+            sudo systemctl daemon-reload || true
             sudo systemctl stop myapp || true
-            pkill -f "$SERVER_DIR/$APP_JAR" 2>/dev/null || true
-            pkill -f "/home/ubuntu/BE/app.jar" 2>/dev/null || true
+
+            # 정확 매칭으로 대상 PID만 종료(쉘/ssh 보호)
+            set +e
+            PIDS=$(ps -eo pid,cmd | awk -v jar="$SERVER_DIR/$APP_JAR" '$0 ~ /java/ && $0 ~ ("-jar " jar) {print $1}')
+            if [ -n "$PIDS" ]; then
+              echo "killing PIDs: $PIDS"
+              sudo kill -TERM $PIDS 2>/dev/null
+              sleep 2
+              sudo kill -KILL $PIDS 2>/dev/null
+            fi
+            set -e
 
             echo "[backup] keep previous jar"
             if [ -f "$SERVER_DIR/$APP_JAR" ]; then
