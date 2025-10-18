@@ -5,7 +5,7 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "place_stats")
+@Table(name = "place_top3")
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class PlaceStat {
 
