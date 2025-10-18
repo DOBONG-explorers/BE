@@ -50,7 +50,7 @@ jobs:
         uses: appleboy/ssh-action@v1.2.0
         env:
           SERVER_DIR: ${{ env.SERVER_DIR }}
-          APP_ENV: ${{ secrets.APP_ENV }}   # 멀티라인 .env 전체 내용
+          APP_ENV: ${{ secrets.APP_ENV }}
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
@@ -63,7 +63,7 @@ jobs:
             sudo chown -R "${USER}:${USER}" "$SERVER_DIR"
             sudo chmod 755 /home/ubuntu /home/ubuntu/BE
 
-            # .env 갱신(있으면 유지, 시크릿이 넘어오면 덮어씀), CRLF 제거
+            # .env 생성 및 CRLF 제거
             if [ -n "${APP_ENV:-}" ]; then
               printf "%s\n" "$APP_ENV" > "$SERVER_DIR/.env.tmp"
               tr -d '\r' < "$SERVER_DIR/.env.tmp" > "$SERVER_DIR/.env"
@@ -79,7 +79,7 @@ jobs:
 
             ls -ld "$SERVER_DIR" "$SERVER_DIR/upload"
 
-      # JAR 업로드 (단일 파일, strip_components 제거)
+      # JAR 업로드 (단일 파일 + strip_components=2 로 경로 평탄화)
       - name: Copy JAR to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -88,8 +88,9 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           port: 22
           source: "${{ steps.pick.outputs.jar }}"
-          target: "${{ env.SERVER_DIR }}/upload"
+          target: "${{ env.SERVER_DIR }}/upload/"
           overwrite: true
+          strip_components: 2   # build/libs 구조 제거 → upload/ 바로 아래에 JAR만 남김
 
       # 업로드 확인
       - name: Verify upload on EC2
@@ -104,6 +105,7 @@ jobs:
           envs: SERVER_DIR
           script: |
             set -euo pipefail
+            echo "[verify] uploaded jars under $SERVER_DIR/upload"
             ls -lt "$SERVER_DIR/upload" | head -n 5
             ls -t "$SERVER_DIR"/upload/*.jar | head -n 1
 
