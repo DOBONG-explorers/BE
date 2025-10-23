@@ -3,15 +3,19 @@ package com.dobongzip.dobong.domain.map.service;
 import com.dobongzip.dobong.domain.like.service.LikeService;
 import com.dobongzip.dobong.domain.map.client.GooglePlacesClientV1;
 import com.dobongzip.dobong.domain.map.client.WikipediaClient;
-import com.dobongzip.dobong.domain.map.dto.response.PlaceDetailsResponse;
-import com.dobongzip.dobong.domain.map.dto.response.PlaceDto;
-import com.dobongzip.dobong.domain.map.dto.response.PlacesV1PlaceDetailsResponse;
-import com.dobongzip.dobong.domain.map.dto.response.PlacesV1SearchTextResponse;
+import com.dobongzip.dobong.domain.map.dto.response.*;
+import com.dobongzip.dobong.domain.map.entity.PlaceStat;
+import com.dobongzip.dobong.domain.map.repository.PlaceStatRepository;
 import com.dobongzip.dobong.domain.map.util.GeoUtils;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.*;
+
 
 @Service
 @RequiredArgsConstructor
@@ -19,6 +23,8 @@ public class PlaceService {
     private final GooglePlacesClientV1 v1;
     private final WikipediaClient wikipedia;
     private final LikeService likeService;
+    private final PlaceStatRepository placeStatRepository;
+    private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
     public List<PlaceDto> findDobongAttractions(double userLat, double userLng, int limit) {
         PlacesV1SearchTextResponse res = v1.searchDobongAttractions();
@@ -93,6 +99,7 @@ public class PlaceService {
     }
 
     public PlaceDetailsResponse getPlaceDetail(String placeId) {
+        bumpView(placeId);
         var d = v1.fetchPlaceDetails(placeId);
         if (d == null) return null;
 
@@ -134,7 +141,57 @@ public class PlaceService {
                 .build();
     }
 
+    @Transactional(readOnly = true)
+    public List<TopPlaceDto> getTopPlaces(double userLat, double userLng, int limit) {
+        int n = Math.max(1, Math.min(limit, 10));
+        var stats = placeStatRepository.findTop(PageRequest.of(0, n)).getContent();
 
+        List<TopPlaceDto> out = new ArrayList<>();
+        for (PlaceStat s : stats) {
+            var d = v1.fetchPlaceDetails(s.getPlaceId());
+            if (d == null || d.getLocation() == null) continue;
+
+            double lat = d.getLocation().getLatitude();
+            double lng = d.getLocation().getLongitude();
+            long dist = GeoUtils.haversineMeters(userLat, userLng, lat, lng);
+
+            String photoName = (d.getPhotos() != null && !d.getPhotos().isEmpty())
+                    ? d.getPhotos().get(0).getName() : null;
+            String phone = firstNonNull(d.getInternationalPhoneNumber(), d.getNationalPhoneNumber());
+
+            out.add(TopPlaceDto.builder()
+                    .placeId(d.getId())
+                    .name(d.getDisplayName() != null ? d.getDisplayName().getText() : null)
+                    .address(d.getFormattedAddress())
+                    .latitude(lat)
+                    .longitude(lng)
+                    .distanceMeters(dist)
+                    .distanceText(GeoUtils.formatDistance(dist))
+                    .imageUrl(v1.buildPhotoUrl(photoName, 800))
+                    .phone(phone)
+                    .rating(d.getRating())
+                    .reviewCount(d.getUserRatingCount())
+                    .build());
+        }
+        return out;
+    }
+
+    // --------------------------
+    // 내부: 조회수 +1
+    // --------------------------
+    @Transactional
+    protected void bumpView(String placeId) {
+        var now = LocalDateTime.now(KST);
+        var stat = placeStatRepository.findById(placeId)
+                .orElse(PlaceStat.builder()
+                        .placeId(placeId)
+                        .viewCount(0)
+                        .lastViewedAt(now)
+                        .build());
+        stat.setViewCount(stat.getViewCount() + 1);
+        stat.setLastViewedAt(now);
+        placeStatRepository.save(stat);
+    }
 
     // ==========================
     // 내부 헬퍼
