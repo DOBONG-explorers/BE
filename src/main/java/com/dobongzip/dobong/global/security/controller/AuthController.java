@@ -113,7 +113,8 @@ public class AuthController {
     /**
      * 프로필 등록 (회원가입 2단계)
      */
-    @Operation(summary = "앱 회원가입 2단계 - 프로필 입력", description = "이름, 닉네임, 성별, 생일 정보를 등록합니다.")
+    @Operation(summary = "회원가입 공통처리 - 프로필 입력", description = "앱, 소셜로그인 공통으로 진행되는 회원가입입니다. <br>" +
+            "이름, 닉네임, 성별, 생일 정보를 등록합니다.")
     @PostMapping("/profile")
     public ResponseEntity<CommonResponse<String>> completeProfile(
             @RequestBody @Valid ProfileRequestDto request,
