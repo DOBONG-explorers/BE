@@ -38,8 +38,10 @@ public class PlaceController {
     @Operation(
             summary = "도봉 명소 검색(목록/카드)",
             description = """
-                    사용자 좌표 기준으로 도봉구 명소를 검색합니다.
-                    이름, 주소, 거리, 대표사진, 별점/리뷰수, 영업시간, 가격레벨 등이 포함됩니다.
+                    사용자 좌표 기준으로 도봉구 명소를 검색합니다.<br>
+                    이름, 주소, 거리, 대표사진, 별점/리뷰수, 영업시간, 가격레벨 등이 포함됩니다.<br>
+                    `lat`, `lng`: 사용자 현재 위도, 경도.<br>
+                     limit는 반환 개수입니다.
                     """)
     @GetMapping("/dobong")
     public ResponseEntity<CommonResponse<List<PlaceDto>>> getDobong(
@@ -54,7 +56,8 @@ public class PlaceController {
 
     @Operation(
             summary = "장소 상세 조회",
-            description = "Wikipedia/Google 소개, 주소, 영업시간, 가격레벨, 전화, 사진들, 별점/리뷰수를 반환합니다."
+            description = "Wikipedia/Google 소개, 주소, 영업시간, 가격레벨, 전화, 사진들, 별점/리뷰수를 반환합니다.<br>" +
+                    "`placeId`는 '/dobong' 명소 검색 API에서 받은 `placeId` 값을 사용합니다."
     )
     @GetMapping("/{placeId}")
     public ResponseEntity<CommonResponse<PlaceDetailsResponse>> getPlaceDetail(@PathVariable String placeId) {
@@ -81,7 +84,7 @@ public class PlaceController {
 
     @Operation(
             summary = "리뷰 작성",
-            description = "해당 장소에 로컬(DB) 리뷰를 1인 1개 정책으로 작성합니다.",
+            description = "[로그인 필수] 해당 장소에 리뷰를 작성합니다.",
             security = @SecurityRequirement(name = "bearerAuth"),
             requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(
                     required = true,
@@ -101,7 +104,7 @@ public class PlaceController {
 
     @Operation(
             summary = "리뷰 수정",
-            description = "작성자 본인만 리뷰를 수정할 수 있습니다.",
+            description = "[로그인 필수] 작성자 본인만 리뷰를 수정할 수 있습니다.",
             security = @SecurityRequirement(name = "bearerAuth"),
             requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(
                     required = true,
@@ -121,7 +124,7 @@ public class PlaceController {
 
     @Operation(
             summary = "리뷰 삭제(소프트)",
-            description = "작성자 본인만 리뷰를 삭제할 수 있습니다. 소프트 삭제 처리합니다.",
+            description = "[로그인 필수] 작성자 본인만 리뷰를 삭제할 수 있습니다. 소프트 삭제 처리합니다.",
             security = @SecurityRequirement(name = "bearerAuth"))
     @DeleteMapping("/{placeId}/reviews/{reviewId}")
     public ResponseEntity<CommonResponse<?>> deleteReview(

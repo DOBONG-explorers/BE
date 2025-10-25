@@ -28,7 +28,8 @@ public class MainController {
     private final PlaceService placeService;
     @Operation(
             summary = "도봉구 행사 이미지 리스트",
-            description = "도봉구 문화행사 중 이미지(MAIN_IMG)가 있는 항목만 반환합니다."
+            description = "도봉구 문화행사 중 이미지(MAIN_IMG)가 있는 항목만 반환합니다.<br>" +
+                    "`date` (YYYY-MM-DD): 특정 날짜 기준으로 조회. (없으면 현재 날짜 기준)"
     )
     @GetMapping("/dobong/images")
     public ResponseEntity<CommonResponse<List<EventImageDto>>> getDobongEventImages(
@@ -41,7 +42,8 @@ public class MainController {
 
     @Operation(
             summary = "도봉구 행사 이름+날짜 리스트",
-            description = "행사명과 날짜만 포함된 간단 리스트를 반환합니다."
+            description = "행사명과 날짜만 포함된 간단 리스트를 반환합니다.<br>" +
+                    "`date` (YYYY-MM-DD): 특정 날짜 기준으로 조회. (없으면 현재 날짜 기준)"
     )
     @GetMapping("/dobong/list")
     public ResponseEntity<CommonResponse<List<EventListItemDto>>> listDobongEvents(
@@ -54,7 +56,7 @@ public class MainController {
 
     @Operation(
             summary = "도봉구 행사 상세 조회",
-            description = "목록에서 받은 id로 단일 행사 정보를 EventDto로 반환합니다."
+            description = "목록에서 받은 id로 단일 행사 정보를 반환합니다."
     )
     @GetMapping("/dobong/{id}")
     public ResponseEntity<CommonResponse<EventDto>> getDobongEventDetail(
@@ -88,7 +90,9 @@ public class MainController {
 
     @Operation(
             summary = "인기 TOP 장소",
-            description = "상세 조회수가 많은 순으로 정렬하여 상위 3개 장소를 반환합니다."
+            description = "<b>정렬 기준:</b> '맵 페이지'에서 상세 조회(클릭)가 많이 발생한 순서입니다.<br>\n" +
+                    "                    - <b>`lat`, `lng`:</b> 사용자 현재 위치 (필수). (거리 계산용)<br>\n" +
+                    "                    - <b>`limit`:</b> 반환할 개수 (기본 3개)"
     )
     @GetMapping("/top")
     public ResponseEntity<CommonResponse<List<TopPlaceDto>>> getTopPlaces(
