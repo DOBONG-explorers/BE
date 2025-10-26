@@ -68,6 +68,7 @@ public class AuthService {
                 .phoneNumber(request.getPhoneNumber())
                 .loginType(LoginType.APP)
                 .profileCompleted(false)
+                .active(true)
                 .build();
 
         userRepository.save(user);
@@ -129,6 +130,7 @@ public class AuthService {
                             .email(claims.email())
                             .loginType(LoginType.KAKAO)
                             .profileCompleted(false)
+                            .active(true)
                             .build();
                     return userRepository.save(newbie);
                 });
@@ -151,6 +153,7 @@ public class AuthService {
                                 .email(claims.email())
                                 .loginType(LoginType.GOOGLE)
                                 .profileCompleted(false) // 닉네임/이름/프사는 2단계에서 입력
+                                .active(true)
                                 .build()
                 ));
 
