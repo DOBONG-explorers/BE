@@ -19,7 +19,7 @@ public class SwaggerConfig {
         Info info = new Info()
                 .title("DobongZip API")
                 .version("v1.0.0")
-                .description("도봉집 프로젝트 API 명세서입니다.");
+                .description("도봉 마을 탐험대 API 명세서입니다.");
 
         Server productionServer = new Server()
                 .url("https://dobongzip.com")
