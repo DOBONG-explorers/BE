@@ -9,8 +9,8 @@ import com.dobongzip.dobong.domain.mainpage.dto.response.EventListItemDto;
 import com.dobongzip.dobong.domain.mainpage.dto.response.HeritageDetailDto;
 import com.dobongzip.dobong.domain.mainpage.dto.response.HeritageListItemDto;
 import com.dobongzip.dobong.domain.mainpage.dto.response.SeoulEventResponse;
-import com.dobongzip.dobong.domain.mainpage.dto.response.*;
 import com.dobongzip.dobong.domain.map.client.GooglePlacesClientV1;
+import com.dobongzip.dobong.domain.map.dto.response.TopPlaceDto;
 import com.dobongzip.dobong.global.exception.BusinessException;
 import com.dobongzip.dobong.global.response.StatusCode;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -18,8 +18,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.LocalDate;
@@ -386,6 +389,41 @@ public class MainService {
             return sb.toString();
         } catch (Exception e) {
             return String.valueOf(key.hashCode());
+        }
+    }
+
+    @Value("classpath:hotplace/nh.json")
+    private ClassPathResource resource;
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    // 랜덤 장소 반환하는 로직
+    public TopPlaceDto getRandomPlaceFromJson() {
+        List<TopPlaceDto> places = new ArrayList<>();
+
+        try {
+            JsonNode rootNode = objectMapper.readTree(resource.getInputStream());
+
+            JsonNode dataNode = rootNode.path("data");
+            if (dataNode.isArray()) {
+                for (JsonNode node : dataNode) {
+                    TopPlaceDto place = new TopPlaceDto();
+                    place.setPlaceId(node.path("placeId").asText());
+                    place.setName(node.path("name").asText());
+                    place.setAddress(node.path("address").asText());
+                    place.setImageUrl(node.path("imageUrl").asText());
+
+                    places.add(place);
+                }
+            }
+
+            // 랜덤 선택
+            Random random = new Random();
+            int index = random.nextInt(places.size());
+            return places.get(index);  // 랜덤으로 하나 반환
+
+        } catch (IOException e) {
+            throw new RuntimeException("Error reading JSON file", e);
         }
     }
 }
