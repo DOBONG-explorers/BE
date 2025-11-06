@@ -103,4 +103,14 @@ public class MainController {
         var list = placeService.getTopPlaces(lat, lng, limit);
         return ResponseEntity.ok(CommonResponse.onSuccess(list));
     }
+
+    @Operation(
+            summary = "랜덤으로 도봉구 느좋+핫플 장소 반환",
+            description = "도봉구의 느좋+핫플 장소를 랜덤으로 하나 반환합니다."
+    )
+    @GetMapping("/random-place")
+    public ResponseEntity<CommonResponse<TopPlaceDto>> getRandomPlace() {
+        TopPlaceDto randomPlace = mainService.getRandomPlaceFromJson();
+        return ResponseEntity.ok(CommonResponse.onSuccess(randomPlace));
+    }
 }
