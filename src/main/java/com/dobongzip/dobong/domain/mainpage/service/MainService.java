@@ -19,7 +19,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -35,6 +35,12 @@ import java.util.*;
 @Service
 @RequiredArgsConstructor
 public class MainService {
+
+    @Value("classpath:hotplace/nh.json")
+    private Resource resource;
+
+    @Value("classpath:heritage/heritage.json")
+    private Resource heritageDescResource;
 
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
     private static final DateTimeFormatter F = DateTimeFormatter.ofPattern("yyyy-MM-dd");
@@ -105,6 +111,75 @@ public class MainService {
     }
 
     /** 도봉 문화유산(구청 오픈API) */
+    public JsonNode getDobongHeritageDetailRaw(String id) {
+        if (id == null || id.isBlank()) throw BusinessException.of(StatusCode.INVALID_REQUEST);
+
+        JsonNode data = getDobongCulturalHeritage();
+        Map<String, String> descOverrideMap = getHeritageDescMap();
+
+        for (JsonNode item : data) {
+            if (id.equals(safeText(item, "ID"))) {
+                String override = descOverrideMap.get(id);
+
+                // 외부 원문 폴백 제거 → 오버라이드 없으면 빈 문자열
+                String finalDesc = (override != null && !override.isBlank()) ? override : "";
+
+                ObjectNode copy = ((ObjectNode) item).deepCopy();
+                copy.put("description", finalDesc);
+                return copy;
+            }
+        }
+        throw BusinessException.of(StatusCode.RESOURCE_NOT_FOUND);
+    }
+
+
+    /** 문화유산 상세 (원본 JSON 그대로 반환) */
+    public HeritageDetailDto getDobongHeritageDetail(String id) {
+        if (id == null || id.isBlank()) throw BusinessException.of(StatusCode.INVALID_REQUEST);
+
+        JsonNode data = getDobongCulturalHeritage();
+        Map<String, String> descOverrideMap = getHeritageDescMap();
+
+        for (JsonNode item : data) {
+            if (id.equals(safeText(item, "ID"))) {
+                String desc = descOverrideMap.get(id); // 1) id로 1차 시도
+                if (desc == null || desc.isBlank()) {
+                    // 2) 동일 아이템으로 다시 가능한 서명들 생성해 매칭
+                    String name    = safeText(item, "SHD_NM");
+                    String addr    = firstNonBlank(safeText(item, "CO_F2"), safeText(item, "SCD_JIBUN_ADDR"));
+                    String number  = safeText(item, "NUMBER");
+
+                    String k1 = stableId(name, addr, number); // 현재 방식
+                    String k2 = stableId(name, addr, "");      // 번호 없이
+                    String k3 = stableId(name, "", number);    // 주소 없이
+
+                    desc = firstNonBlank(descOverrideMap.get(k1), descOverrideMap.get(k2), descOverrideMap.get(k3));
+                    log.info("[Heritage] id={} descById?={}, fallbackHit?={}",
+                            id, descOverrideMap.containsKey(id), desc != null);
+                }
+                if (desc != null && desc.isBlank()) desc = null;
+
+                return HeritageDetailDto.builder()
+                        .id(safeText(item, "ID"))
+                        .name(safeText(item, "SHD_NM"))
+                        .nameHanja(safeText(item, "SHD_NM_HANJA"))
+                        .address(firstNonBlank(safeText(item, "CO_F2"), safeText(item, "SCD_JIBUN_ADDR")))
+                        .designationNo(firstNonBlank(safeText(item, "NUMBER"), safeText(item, "VA_F2")))
+                        .designationDate(firstNonBlank(normalizeDate(safeText(item, "REG_DT")), normalizeDate(safeText(item, "VA_F3"))))
+                        .tel(safeText(item, "CO_F3"))
+                        .description(desc) // ← 여기!
+                        .imageUrl(firstNonBlank(safeText(item, "IMAGE_URL"), "https://your.cdn/static/placeholder.png"))
+                        .lat(safeDouble(item, "LATITUDE"))
+                        .lng(safeDouble(item, "LONGITUDE"))
+                        .build();
+            }
+        }
+        throw BusinessException.of(StatusCode.RESOURCE_NOT_FOUND);
+    }
+
+
+
+    /** 도봉 문화유산(구청 오픈API) 목록 + IMAGE_URL/ID 주입 */
     public JsonNode getDobongCulturalHeritage() {
         final String response;
         try {
@@ -127,19 +202,21 @@ public class MainService {
                 throw BusinessException.of(StatusCode.DOBONG_OPENAPI_BAD_RESPONSE);
             }
 
-            // === Google Places 사진 + 안정적 ID 주입 ===
+            // Google Places 사진 + 안정적 ID 주입
             for (JsonNode item : dataNode) {
                 String name = safeText(item, "SHD_NM");
                 String addr = firstNonBlank(safeText(item, "CO_F2"), safeText(item, "SCD_JIBUN_ADDR"));
                 Double lat = safeDouble(item, "LATITUDE");
                 Double lng = safeDouble(item, "LONGITUDE");
-                String query = (name + " " + Optional.ofNullable(addr).orElse("")).trim();
+                String query = (name + " " + (addr == null ? "" : addr)).trim();
 
                 String img = "https://your.cdn/static/placeholder.png";
                 if (!query.isBlank()) {
                     try {
                         Optional<String> photoUrl = placesClient.searchFirstPhotoUrlByText(query, lat, lng, 800);
-                        if (photoUrl.isPresent() && !photoUrl.get().isBlank()) img = photoUrl.get();
+                        if (photoUrl.isPresent() && !photoUrl.get().isBlank()) {
+                            img = photoUrl.get();
+                        }
                     } catch (Exception photoEx) {
                         log.warn("[DobongOpenAPI] Places photo fetch failed for '{}'", query, photoEx);
                     }
@@ -148,12 +225,8 @@ public class MainService {
                 if (item.isObject()) {
                     ObjectNode o = (ObjectNode) item;
                     o.put("IMAGE_URL", img);
-                    // 이름+주소(+번호 보조)로 안정적 ID 주입 → 상세조회에서 그대로 사용할 것
-                    String computedId = stableId(
-                            name,
-                            addr,
-                            safeText(item, "NUMBER") // 없으면 빈문자
-                    );
+                    // 이름+주소(+번호)로 안정적 ID
+                    String computedId = stableId(name, addr, safeText(item, "NUMBER"));
                     o.put("ID", computedId);
                 }
             }
@@ -167,21 +240,50 @@ public class MainService {
             throw BusinessException.of(StatusCode.DOBONG_OPENAPI_BAD_RESPONSE);
         }
     }
-    /** 문화유산 상세 (원본 JSON 그대로 반환) */
-    public JsonNode getDobongHeritageDetailRaw(String id) {
-        if (id == null || id.isBlank()) {
-            throw BusinessException.of(StatusCode.INVALID_REQUEST);
-        }
 
-        JsonNode data = getDobongCulturalHeritage(); // IMAGE_URL, ID 포함된 전체 JSON
-        for (JsonNode item : data) {
-            if (id.equals(safeText(item, "ID"))) {
-                return item; // 그대로 반환 (JsonNode)
+
+
+    private volatile Map<String, String> heritageDescMap;
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    private Map<String, String> getHeritageDescMap() {
+        if (heritageDescMap == null) {
+            synchronized (this) {
+                if (heritageDescMap == null) {
+                    Map<String, String> tmp = new HashMap<>();
+                    try {
+                        var root = objectMapper.readTree(heritageDescResource.getInputStream());
+                        if (root.isObject()) {
+                            root.fields().forEachRemaining(e -> {
+                                String id = e.getKey();
+                                String desc = e.getValue().path("description").asText(null);
+                                if (desc != null && !desc.isBlank()) tmp.put(id, desc);
+                            });
+                        } else if (root.isArray()) {
+                            for (JsonNode n : root) {
+                                String id   = n.path("id").asText(null);
+                                String desc = n.path("description").asText(null);
+                                if (id != null && !id.isBlank() && desc != null && !desc.isBlank()) {
+                                    tmp.put(id, desc);
+                                }
+                            }
+                        }
+                        log.info("[Heritage] loaded={} keys", tmp.size());
+                        tmp.keySet().stream().limit(5).forEach(k -> log.info("[Heritage] sampleKey={}", k));
+                    } catch (IOException io) {
+                        log.warn("[Heritage] Failed to load heritage.json", io);
+                    }
+                    heritageDescMap = Collections.unmodifiableMap(tmp);
+                }
             }
         }
-
-        throw BusinessException.of(StatusCode.RESOURCE_NOT_FOUND);
+        return heritageDescMap;
     }
+
+
+
+    private boolean isBlank(String s){ return s == null || s.isBlank(); }
+
 
     // ───────────────────── 신규: 목록/상세(행사) 공개 메서드 ─────────────────────
 
@@ -239,37 +341,7 @@ public class MainService {
         return list;
     }
 
-    /** 문화유산 상세: HeritageDetailDto로 매핑 반환 */
-    public HeritageDetailDto getDobongHeritageDetail(String id) {
-        if (id == null || id.isBlank()) {
-            throw BusinessException.of(StatusCode.INVALID_REQUEST);
-        }
 
-        JsonNode data = getDobongCulturalHeritage(); // 전체 목록
-        for (JsonNode item : data) {
-            if (id.equals(safeText(item, "ID"))) {
-                return HeritageDetailDto.builder()
-                        .id(safeText(item, "ID"))
-                        .name(safeText(item, "SHD_NM"))
-                        .nameHanja(safeText(item, "SHD_NM_HANJA"))
-                        .address(firstNonBlank(
-                                safeText(item, "CO_F2"),
-                                safeText(item, "SCD_JIBUN_ADDR")))
-                        .designationNo(safeText(item, "NUMBER"))
-                        .designationDate(normalizeDate(safeText(item, "REG_DT")))
-                        .tel(safeText(item, "CO_F3"))
-                        .description(safeText(item, "CONT_CO_F1"))
-                        .imageUrl(firstNonBlank(
-                                safeText(item, "IMAGE_URL"),
-                                "https://your.cdn/static/placeholder.png"))
-                        .lat(safeDouble(item, "LATITUDE"))
-                        .lng(safeDouble(item, "LONGITUDE"))
-                        .build();
-            }
-        }
-
-        throw BusinessException.of(StatusCode.RESOURCE_NOT_FOUND);
-    }
 
     // ───────────────────────── private helpers ─────────────────────────
 
@@ -392,10 +464,8 @@ public class MainService {
         }
     }
 
-    @Value("classpath:hotplace/nh.json")
-    private ClassPathResource resource;
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+
 
     // 랜덤 장소 반환하는 로직
     public TopPlaceDto getRandomPlaceFromJson() {
