@@ -1,10 +1,7 @@
 package com.dobongzip.dobong.domain.mainpage.controller;
 
 import com.dobongzip.dobong.domain.mainpage.dto.request.EventSearchRequest;
-import com.dobongzip.dobong.domain.mainpage.dto.response.EventDto;
-import com.dobongzip.dobong.domain.mainpage.dto.response.EventImageDto;
-import com.dobongzip.dobong.domain.mainpage.dto.response.EventListItemDto;
-import com.dobongzip.dobong.domain.mainpage.dto.response.HeritageListItemDto;
+import com.dobongzip.dobong.domain.mainpage.dto.response.*;
 import com.dobongzip.dobong.domain.mainpage.service.MainService;
 import com.dobongzip.dobong.domain.map.dto.response.TopPlaceDto;
 import com.dobongzip.dobong.domain.map.service.PlaceService;
