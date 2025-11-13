@@ -32,6 +32,9 @@ spring:
       api-key: ${API_KEY}
       cont-code: ${CONT_CODE}
 
+  python:
+    url: ${PYTHON_URL}
+
 
 kakao:
   rest-api-key: ${KAKAO_AUTH_API_KEY}       # 카카오 REST API Key (aud 검증용)
