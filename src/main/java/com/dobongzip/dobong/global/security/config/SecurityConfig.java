@@ -30,7 +30,8 @@ public class SecurityConfig {
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         // 공개
-                        .requestMatchers("/api/v1/auth/**", "/swagger-ui/**", "/v3/api-docs/**", "/api/v1/mainpage/**").permitAll()
+                        .requestMatchers("/api/v1/auth/**", "/swagger-ui/**", "/v3/api-docs/**", "/api/v1/mainpage/**","/api/v1/chatbot/*"
+                        ).permitAll()
                         .requestMatchers(HttpMethod.GET,
                                 "/api/v1/places/dobong",
                                 "/api/v1/places/*",              // 상세
