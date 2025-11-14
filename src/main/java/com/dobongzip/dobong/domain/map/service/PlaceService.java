@@ -153,7 +153,11 @@ public class PlaceService {
 
             double lat = d.getLocation().getLatitude();
             double lng = d.getLocation().getLongitude();
-            long dist = GeoUtils.haversineMeters(userLat, userLng, lat, lng);
+
+            // [수정] long(미터) -> double(킬로미터)
+            long distInMeters = GeoUtils.haversineMeters(userLat, userLng, lat, lng); // 1. 미터(m) 계산
+            double distInKm = distInMeters / 1000.0; // 2. km로 변환
+            distInKm = Math.round(distInKm * 100.0) / 100.0; // 3. 소수점 2자리 (e.g., 6.47)
 
             String photoName = (d.getPhotos() != null && !d.getPhotos().isEmpty())
                     ? d.getPhotos().get(0).getName() : null;
@@ -165,8 +169,8 @@ public class PlaceService {
                     .address(d.getFormattedAddress())
                     .latitude(lat)
                     .longitude(lng)
-                    .distanceMeters(dist)
-                    .distanceText(GeoUtils.formatDistance(dist))
+                    .distance(distInKm) // [수정] km 값 저장
+                    .distanceText(GeoUtils.formatDistance(distInMeters)) // [권장] 텍스트 변환은 '미터' 기준으로
                     .imageUrl(v1.buildPhotoUrl(photoName, 800))
                     .phone(phone)
                     .rating(d.getRating())
