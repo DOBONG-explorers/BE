@@ -468,32 +468,77 @@ public class MainService {
 
 
     // 랜덤 장소 반환하는 로직
-    public TopPlaceDto getRandomPlaceFromJson() {
+    public TopPlaceDto getRandomPlaceFromJson(double userLat, double userLon) {
         List<TopPlaceDto> places = new ArrayList<>();
 
         try {
             JsonNode rootNode = objectMapper.readTree(resource.getInputStream());
-
             JsonNode dataNode = rootNode.path("data");
+
             if (dataNode.isArray()) {
                 for (JsonNode node : dataNode) {
                     TopPlaceDto place = new TopPlaceDto();
-                    place.setPlaceId(node.path("placeId").asText());
-                    place.setName(node.path("name").asText());
-                    place.setAddress(node.path("address").asText());
-                    place.setImageUrl(node.path("imageUrl").asText());
+
+                    // [수정] JSON 파일의 다른 정보도 DTO에 채워넣어야 합니다.
+                    // (JSON 파일에 있는 실제 키 이름으로 변경해야 합니다)
+                    place.setPlaceId(node.path("placeId").asText(null)); // 예: JSON 키가 "placeId"인 경우
+                    place.setName(node.path("name").asText(null));       // 예: JSON 키가 "name"인 경우
+                    place.setAddress(node.path("address").asText(null)); // 예: JSON 키가 "address"인 경우
+                    place.setImageUrl(node.path("imageUrl").asText(null)); // 예: JSON 키가 "imageUrl"인 경우
+                    place.setPhone(node.path("phone").asText(null));     // 예: JSON 키가 "phone"인 경우
+
+                    // 기존 위도/경도 설정
+                    place.setLatitude(node.path("latitude").asDouble());
+                    place.setLongitude(node.path("longitude").asDouble());
 
                     places.add(place);
                 }
             }
 
-            // 랜덤 선택
+            if (places.isEmpty()) {
+                throw new RuntimeException("No places found in JSON file");
+            }
+
+            // 1. 랜덤 선택
             Random random = new Random();
             int index = random.nextInt(places.size());
-            return places.get(index);  // 랜덤으로 하나 반환
+            TopPlaceDto randomPlace = places.get(index);
+
+            // 2. [수정] 거리 계산 (calculateDistance가 '미터'를 반환한다고 가정)
+            double distanceInMeters = calculateDistance(
+                    userLat, userLon,
+                    randomPlace.getLatitude(), randomPlace.getLongitude()
+            );
+
+            // 3. [수정] 미터 단위로 소수점 1자리까지 반올림 (예: 6469.5m)
+            distanceInMeters = Math.round(distanceInMeters * 10.0) / 10.0;
+
+            // 4. [수정] 1000을 곱하는 로직을 제거하고, 계산된 미터 값을 바로 설정
+            randomPlace.setDistance(distanceInMeters);
+
+            return randomPlace;
 
         } catch (IOException e) {
             throw new RuntimeException("Error reading JSON file", e);
         }
+    }
+
+    /**
+     * [변경] 두 지점 간의 거리를 킬로미터(km) 단위로 계산합니다.
+     */
+    private double calculateDistance(double lat1, double lon1, double lat2, double lon2) {
+        // [변경] R = 6371 (km)
+        final double R = 6371.0; // 지구 반지름 (km)
+
+        double latDistance = Math.toRadians(lat2 - lat1);
+        double lonDistance = Math.toRadians(lon2 - lon1);
+
+        double a = Math.sin(latDistance / 2) * Math.sin(latDistance / 2)
+                + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
+                * Math.sin(lonDistance / 2) * Math.sin(lonDistance / 2);
+
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+        return R * c; // 킬로미터(km) 단위 거리
     }
 }
