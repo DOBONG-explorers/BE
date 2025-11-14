@@ -11,7 +11,7 @@ public class TopPlaceDto {
     private Double latitude;
     private Double longitude;
 
-    private Long distanceMeters;
+    private double distance;
     private String distanceText;
 
     private String imageUrl;
