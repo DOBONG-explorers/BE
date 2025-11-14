@@ -103,11 +103,15 @@ public class MainController {
 
     @Operation(
             summary = "랜덤으로 도봉구 느좋+핫플 장소 반환",
-            description = "도봉구의 느좋+핫플 장소를 랜덤으로 하나 반환합니다."
+            description = "도봉구의 느좋+핫플 장소를 랜덤으로 하나 반환합니다. 사용자 위치(lat, lon)를 기준으로 거리를 계산합니다."
     )
     @GetMapping("/random-place")
-    public ResponseEntity<CommonResponse<TopPlaceDto>> getRandomPlace() {
-        TopPlaceDto randomPlace = mainService.getRandomPlaceFromJson();
+    public ResponseEntity<CommonResponse<TopPlaceDto>> getRandomPlace(
+            @RequestParam double lat,
+            @RequestParam double lon
+    ) {
+        // 서비스 호출 시 사용자 위치를 함께 전달
+        TopPlaceDto randomPlace = mainService.getRandomPlaceFromJson(lat, lon);
         return ResponseEntity.ok(CommonResponse.onSuccess(randomPlace));
     }
 }
