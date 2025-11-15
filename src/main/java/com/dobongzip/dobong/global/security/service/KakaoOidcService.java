@@ -15,7 +15,7 @@ import java.util.Date;
 
 @Service
 public class KakaoOidcService {
-    @Value("${kakao.rest-api-key}") private String clientId;   // aud
+    @Value("${kakao.native-app-key}") private String clientId;   // aud
     @Value("${kakao.oidc.issuer}")  private String issuer;     // https://kauth.kakao.com
     @Value("${kakao.oidc.jwks-uri}") private String jwksUri;   // https://kauth.kakao.com/.well-known/jwks.json
 
