@@ -95,9 +95,19 @@ public class AuthController {
             description = """
     Android에서 Google Identity Services로 받은 **ID 토큰(id_token)** 을 서버로 보내 로그인/자동가입을 수행합니다.
 
-    - 클라: `serverClientId`에 **웹 클라이언트 ID**를 사용하여 id_token을 발급받을 것.
-    - 가능하면 `nonce`도 함께 보내 재생공격을 방지합니다.
-    - 응답의 `token`은 **우리 서비스 JWT**입니다. 이후 `Authorization: Bearer {token}`로 호출하세요.
+    ##  Google OIDC 인증 흐름 (2-ID 필수)
+    Google 로그인은 **2개의 클라이언트 ID** (Android ID, Web ID)가 모두 필요합니다.
+    1.  **`Android 클라이언트 ID(프론트가 생성)`**: 안드로이드 앱이 Google SDK에 자신의 신원(패키지명/SHA-1)을 증명할 때 사용합니다. (서버는 이 ID를 모름)
+    2.  **`Web 클라이언트 ID(백에서 생성함)`**: 서버가 `id_token`의 **`aud` (대상) 클레임**을 검증할 때 사용합니다. (서버 `yml`에 저장된 ID)
+
+    ##  프론트(Android) 가이드
+    - **[필수]** Google SDK로 `id_token`을 요청할 때, **`requestIdToken(서버의_Web_클라이언트_ID)`** 옵션을 사용해야 합니다.
+    - **(이유)**: 이렇게 해야 `id_token`의 `aud` 값이 'Android ID'가 아닌, 서버가 검증할 **'Web ID'**로 발급됩니다.
+    - 가능하면 `nonce`도 생성하여 요청에 포함하고, 서버에도 `id_token`과 함께 전송하세요.
+    
+
+    ## ➡ 다음 단계 (응답)
+    - 응답의 `token`은 **우리 서비스 JWT**입니다. 이후 API 호출 시 `Authorization: Bearer {token}`로 호출하세요.
     - `profileCompleted == false`면 `/auth/profile` 2단계 가입을 완료하세요.
     """
     )
@@ -105,7 +115,6 @@ public class AuthController {
     public ResponseEntity<CommonResponse<LoginResponseDto>> googleOidc(
             @RequestBody @Valid OIDCRequestDto request
     ) {
-        // AuthService에 loginWithGoogleIdToken(idToken) 메서드가 있다고 가정
         LoginResponseDto response = authService.loginWithGoogleIdToken(request.getIdToken());
         return ResponseEntity.ok(CommonResponse.onSuccess(response));
     }

@@ -38,7 +38,8 @@ spring:
 
 
 kakao:
-  rest-api-key: ${KAKAO_AUTH_API_KEY}
+  rest-api-key: ${KAKAO_REST_API_KEY}
+  native-app-key: ${KAKAO_NATIVE_APP_KEY}
   oidc:
     issuer: https://kauth.kakao.com
     jwks-uri: https://kauth.kakao.com/.well-known/jwks.json
