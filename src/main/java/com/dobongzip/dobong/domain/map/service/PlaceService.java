@@ -8,6 +8,8 @@ import com.dobongzip.dobong.domain.map.entity.PlaceStat;
 import com.dobongzip.dobong.domain.map.repository.PlaceStatRepository;
 import com.dobongzip.dobong.domain.map.util.GeoUtils;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,6 +26,7 @@ public class PlaceService {
     private final WikipediaClient wikipedia;
     private final LikeService likeService;
     private final PlaceStatRepository placeStatRepository;
+    private static final Logger log = LoggerFactory.getLogger(PlaceService.class);
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
     public List<PlaceDto> findDobongAttractions(double userLat, double userLng, int limit) {
@@ -143,42 +146,72 @@ public class PlaceService {
 
     @Transactional(readOnly = true)
     public List<TopPlaceDto> getTopPlaces(double userLat, double userLng, int limit) {
-        int n = Math.max(1, Math.min(limit, 10));
+        int n = Math.max(1, Math.min(limit, 10)); // 최대 10개, 최소 1개
+
+        // 1. DB에서 인기 장소 통계 조회
         var stats = placeStatRepository.findTop(PageRequest.of(0, n)).getContent();
 
         List<TopPlaceDto> out = new ArrayList<>();
+
+        // 2. DB에서 가져온 각 장소를 순회하며 Google API로 상세 정보 조회
         for (PlaceStat s : stats) {
-            var d = v1.fetchPlaceDetails(s.getPlaceId());
-            if (d == null || d.getLocation() == null) continue;
+            String placeId = s.getPlaceId(); // (로그용)
 
-            double lat = d.getLocation().getLatitude();
-            double lng = d.getLocation().getLongitude();
+            try {
+                // [핵심] try 블록 시작 (API 호출 전체를 감싼다)
 
-            // [수정] long(미터) -> double(킬로미터)
-            long distInMeters = GeoUtils.haversineMeters(userLat, userLng, lat, lng); // 1. 미터(m) 계산
-            double distInKm = distInMeters / 1000.0; // 2. km로 변환
-            distInKm = Math.round(distInKm * 100.0) / 100.0; // 3. 소수점 2자리 (e.g., 6.47)
+                // 3. (실패 지점 1) Google API로 장소 상세 정보 호출
+                var d = v1.fetchPlaceDetails(placeId);
 
-            String photoName = (d.getPhotos() != null && !d.getPhotos().isEmpty())
-                    ? d.getPhotos().get(0).getName() : null;
-            String phone = firstNonNull(d.getInternationalPhoneNumber(), d.getNationalPhoneNumber());
+                // API 호출이 예외를 던지지 않았더라도, 응답이 비어있을 수 있음
+                if (d == null || d.getLocation() == null) {
+                    log.warn("[getTopPlaces] Google API 응답이 null이거나 위치 정보가 없습니다. (placeId: {})", placeId);
+                    continue; // 이 항목을 건너뛰고 다음 루프로 이동
+                }
 
-            out.add(TopPlaceDto.builder()
-                    .placeId(d.getId())
-                    .name(d.getDisplayName() != null ? d.getDisplayName().getText() : null)
-                    .address(d.getFormattedAddress())
-                    .latitude(lat)
-                    .longitude(lng)
-                    .distance(distInKm) // [수정] km 값 저장
-                    .distanceText(GeoUtils.formatDistance(distInMeters)) // [권장] 텍스트 변환은 '미터' 기준으로
-                    .imageUrl(v1.buildPhotoUrl(photoName, 800))
-                    .phone(phone)
-                    .rating(d.getRating())
-                    .reviewCount(d.getUserRatingCount())
-                    .build());
+                // --- (여기부터는 d가 정상일 때만 실행됨) ---
+                double lat = d.getLocation().getLatitude();
+                double lng = d.getLocation().getLongitude();
+
+                // 4. 거리 계산
+                long distInMeters = GeoUtils.haversineMeters(userLat, userLng, lat, lng);
+                double distInKm = distInMeters / 1000.0;
+                distInKm = Math.round(distInKm * 100.0) / 100.0;
+
+                // 5. 사진 URL, 전화번호 추출
+                String photoName = (d.getPhotos() != null && !d.getPhotos().isEmpty())
+                        ? d.getPhotos().get(0).getName() : null;
+                String phone = firstNonNull(d.getInternationalPhoneNumber(), d.getNationalPhoneNumber());
+
+                // 6. (실패 지점 2) Google API로 사진 URL 빌드
+                String imageUrl = v1.buildPhotoUrl(photoName, 800);
+
+                // 7. 최종 DTO에 추가
+                out.add(TopPlaceDto.builder()
+                        .placeId(d.getId())
+                        .name(d.getDisplayName() != null ? d.getDisplayName().getText() : null)
+                        .address(d.getFormattedAddress())
+                        .latitude(lat)
+                        .longitude(lng)
+                        .distance(distInKm)
+                        .distanceText(GeoUtils.formatDistance(distInMeters))
+                        .imageUrl(imageUrl)
+                        .phone(phone)
+                        .rating(d.getRating())
+                        .reviewCount(d.getUserRatingCount())
+                        .build());
+
+            } catch (Exception e) {
+                log.error("[getTopPlaces] 'Top 장소' 처리 중 예외 발생 (placeId: {}) | 에러: {}",
+                        placeId, e.getMessage());
+            }
         }
+
+        // 8. 성공한 항목들만 리스트로 반환
         return out;
     }
+
+
 
     // --------------------------
     // 내부: 조회수 +1
