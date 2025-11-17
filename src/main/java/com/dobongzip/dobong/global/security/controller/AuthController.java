@@ -105,7 +105,6 @@ public class AuthController {
     - **(이유)**: 이렇게 해야 `id_token`의 `aud` 값이 'Android ID'가 아닌, 서버가 검증할 **'Web ID'**로 발급됩니다.
     - 가능하면 `nonce`도 생성하여 요청에 포함하고, 서버에도 `id_token`과 함께 전송하세요.
     
-
     ## ➡ 다음 단계 (응답)
     - 응답의 `token`은 **우리 서비스 JWT**입니다. 이후 API 호출 시 `Authorization: Bearer {token}`로 호출하세요.
     - `profileCompleted == false`면 `/auth/profile` 2단계 가입을 완료하세요.
