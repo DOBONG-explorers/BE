@@ -43,6 +43,7 @@ public class PlaceController {
 
         return ResponseEntity.ok(CommonResponse.onSuccess(list));
     }
+
     @Operation(
             summary = "도봉 명소 검색(목록/카드)",
             description = """
