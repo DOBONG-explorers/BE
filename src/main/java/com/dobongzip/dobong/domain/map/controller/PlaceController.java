@@ -2,10 +2,7 @@ package com.dobongzip.dobong.domain.map.controller;
 
 import com.dobongzip.dobong.domain.map.dto.request.ReviewCreateRequest;
 import com.dobongzip.dobong.domain.map.dto.request.ReviewUpdateRequest;
-import com.dobongzip.dobong.domain.map.dto.response.PlaceDetailsResponse;
-import com.dobongzip.dobong.domain.map.dto.response.PlaceDto;
-import com.dobongzip.dobong.domain.map.dto.response.ReviewIdResponse;
-import com.dobongzip.dobong.domain.map.dto.response.ReviewListResponse;
+import com.dobongzip.dobong.domain.map.dto.response.*;
 import com.dobongzip.dobong.domain.map.service.PlaceService;
 import com.dobongzip.dobong.domain.map.service.ReviewService;
 import com.dobongzip.dobong.global.response.CommonResponse;
@@ -34,7 +31,18 @@ public class PlaceController {
 
     private final PlaceService placeService;
     private final ReviewService reviewService;
+    @Operation(
+            summary = "장소 연관 검색 (실시간 API 호출 기반)",
+            description = "GET /dobong API 결과를 이용해 메모리에서 사용자의 입력에 매칭되는 장소 이름과 Place ID를 반환합니다."
+    )
+    @GetMapping("/autocomplete")
+    public ResponseEntity<CommonResponse<List<PredictionProjection>>> getAutocomplete(
+            @RequestParam @NotBlank @Size(min = 1, max = 50) String query
+    ) {
+        var list = placeService.getAutocompleteFromDobongApi(query);
 
+        return ResponseEntity.ok(CommonResponse.onSuccess(list));
+    }
     @Operation(
             summary = "도봉 명소 검색(목록/카드)",
             description = """

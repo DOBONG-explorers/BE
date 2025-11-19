@@ -79,6 +79,33 @@ public class GooglePlacesClientV1 {
             "reviews"
     );
 
+
+    // ==========================
+// 2. 동적 쿼리 검색 (/autocomplete용)
+// ==========================
+    public PlacesV1SearchTextResponse searchPlacesByQuery(String userQuery) { // ⭐ 새로운 메서드
+        URI uri = URI.create(BASE + "/places:searchText");
+        HttpHeaders headers = newHeaders(SEARCH_FIELD_MASK);
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        String combinedQuery = "도봉구 " + userQuery; // 도봉구 + 사용자의 검색어 조합
+
+        Map<String, Object> body = Map.of(
+                "textQuery", combinedQuery, // 동적 쿼리 사용
+                "languageCode", props.getLanguage(),
+                "regionCode",  props.getRegion()
+        );
+        ResponseEntity<PlacesV1SearchTextResponse> res =
+                postJson(uri, headers, body, PlacesV1SearchTextResponse.class);
+
+        log.info("[PLACES v1 searchPlacesByQuery] query={} http={} size={}",
+                combinedQuery,
+                res.getStatusCodeValue(),
+                res.getBody() != null && res.getBody().getPlaces() != null
+                        ? res.getBody().getPlaces().size() : 0);
+        return res.getBody();
+    }
+
     // ==========================
     // 검색(목록)
     // ==========================
