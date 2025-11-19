@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.*;
+import java.util.stream.Collectors;
 
 
 @Service
@@ -29,6 +30,51 @@ public class PlaceService {
     private static final Logger log = LoggerFactory.getLogger(PlaceService.class);
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
+
+    @Transactional(readOnly = true)
+    public List<PredictionProjection> getAutocompleteFromDobongApi(String query) {
+        if (query == null || query.isBlank()) {
+            return Collections.emptyList();
+        }
+
+        //  1. V1 클라이언트의 동적 검색 메서드를 호출합니다.
+        PlacesV1SearchTextResponse res = v1.searchPlacesByQuery(query);
+
+        if (res == null || res.getPlaces() == null || res.getPlaces().isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        // 2. PlaceDto 리스트 생성 (findDobongAttractions의 1차 로직 재현)
+        //  findDobongAttractions는 그대로 두고, 이 부분에서 PlaceDto를 직접 생성해야 합니다.
+        List<PlaceDto> dobongPlaces = new ArrayList<>();
+        for (var p : res.getPlaces()) {
+            if (p.getLocation() == null) continue;
+
+            // *주의*: findDobongAttractions의 상세 조회/정렬 로직은 생략
+            dobongPlaces.add(PlaceDto.builder()
+                    .placeId(p.getId())
+                    .name(p.getDisplayName() != null ? p.getDisplayName().getText() : null)
+                    .address(p.getFormattedAddress())
+                    .build());
+        }
+
+        // 3. 필터링 및 Projection (이전 답변의 로직 재사용)
+        final String lowerQuery = query.toLowerCase();
+
+        List<PredictionProjection> filteredResults = dobongPlaces.stream()
+                .filter(p -> {
+                    String name = p.getName() != null ? p.getName().toLowerCase() : "";
+                    String address = p.getAddress() != null ? p.getAddress().toLowerCase() : "";
+                    return name.contains(lowerQuery) || address.contains(lowerQuery);
+                })
+                .map(p -> new PredictionProjection() {
+                    @Override public String getPlaceId() { return p.getPlaceId(); }
+                    @Override public String getName() { return p.getName(); }
+                })
+                .collect(Collectors.toList());
+
+        return filteredResults;
+    }
     public List<PlaceDto> findDobongAttractions(double userLat, double userLng, int limit) {
         PlacesV1SearchTextResponse res = v1.searchDobongAttractions();
         if (res == null || res.getPlaces() == null || res.getPlaces().isEmpty()) {
