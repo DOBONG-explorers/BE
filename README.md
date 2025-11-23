@@ -1,5 +1,5 @@
 # 🏘️ 도봉 마을 탐험대 (Dobong Village Explorers)
-![img.png](img.png)
+<img width="1030" height="731" alt="image" src="https://github.com/user-attachments/assets/fb2180eb-79fa-4832-a243-ba239ca7b6fc" />
 
 "도봉구의 숨겨진 매력을 3D 인터랙티브 맵으로 탐험하다."
 
@@ -7,10 +7,10 @@
 
 ---
 ## 📅 프로젝트 소개
-![img_10.png](img_10.png)
-![img_11.png](img_11.png)
-![img_12.png](img_12.png)
-![img_13.png](img_13.png)
+<img width="1017" height="575" alt="스크린샷 2025-11-23 201438" src="https://github.com/user-attachments/assets/ed6448cb-f931-4944-ac91-7b0f8e21a32b" />
+<img width="1015" height="576" alt="스크린샷 2025-11-23 201528" src="https://github.com/user-attachments/assets/585ae739-292b-4f1d-b284-95743553aa81" />
+<img width="1017" height="573" alt="스크린샷 2025-11-23 201616" src="https://github.com/user-attachments/assets/9634314d-3777-4817-9119-87cd5d1991ee" />
+<img width="1017" height="570" alt="스크린샷 2025-11-23 201840" src="https://github.com/user-attachments/assets/8a2dede3-f65b-4eaa-bb7e-083cf5d9b146" />
 
 ---
 ## ‍💻 팀원
@@ -33,7 +33,7 @@
 
 ## 🏗️ 아키텍쳐
 
-![img_9.png](img_9.png)
+<img width="1920" height="1080" alt="“AI와 3D 모델링으로 도봉구의 숨겨진 명소를 소개하는 팀” (5)" src="https://github.com/user-attachments/assets/31072f80-049c-408b-ac78-c18848865267" />
 
 ---
 ## 🧩 주요 기술 스택
