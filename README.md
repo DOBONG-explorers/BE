@@ -1,20 +1,41 @@
-# 도봉 마을 탐험대 – Spring Backend
+# 🏘️ 도봉 마을 탐험대 (Dobong Village Explorers)
+![img.png](img.png)
 
-도봉 마을 탐험대는 도봉구의 명소를 3D로 탐험할 수 있는 모바일 앱입니다.  
-본 저장소는 해당 앱의 백엔드 서버로, 위치 기반 명소 정보 제공, 3D 시스템, JWT 기반 인증 등 핵심 기능을 담당합니다.
+"도봉구의 숨겨진 매력을 3D 인터랙티브 맵으로 탐험하다."
+
+지역 데이터를 시각화하고 사용자 참여를 유도하여 도봉구를 홍보하는 커뮤니티 플랫폼입니다.
+
+---
+## 📅 프로젝트 소개
+![img_1.png](img_1.png)
+![img_2.png](img_2.png)
+![img_3.png](img_3.png)
+![img_4.png](img_4.png)
+---
+## ‍💻 팀원
+
+
+| FE          | FE                | BE      | DA&AI | MODELING | MODELING |
+|-------------|-------------------|---------|-------|----------|----------|
+| https://github.com/ziizero | https://github.com/chubin925  | https://github.com/hyo-lin | https://github.com/lyoonji      |  https://github.com/YEJUNfootcleaner        | https://github.com/imperial-girl |
 
 ---
 
 ## 🚀 프로젝트 개요
 
 - **프로젝트명**: 도봉 마을 탐험대 (DobongExplorers)
-- **Framework**: Spring Boot 3.4.3
+- **Framework**: Spring Boot 3.5.3
 - **빌드 도구**: Gradle
 - **Database**: MySQL 8.0.33
-- **배포 방식**: 미정 (추후 EC2 또는 Docker 기반 예정)
+- **배포 방식**: EC2
 
 ---
 
+## 🏗️ 아키텍쳐
+
+![img_7.png](img_7.png)
+
+---
 ## 🧩 주요 기술 스택
 
 | 기술              | 설명 |
@@ -25,11 +46,13 @@
 | Swagger          | API 명세 자동 문서화 도구 |
 | JWT + Security   | 사용자 인증 및 보안 처리 |
 
+
+
 ---
-
-
 ## 📝 Git Commit Convention
 Spring Boot 기반 백엔드 프로젝트를 위한 Git 커밋 메시지 작성 규칙입니다.
+
+---
 
 ✅ 커밋 메시지 형식
 ```angular2html
