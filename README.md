@@ -7,17 +7,17 @@
 
 ---
 ## 📅 프로젝트 소개
-![img_1.png](img_1.png)
-![img_2.png](img_2.png)
-![img_3.png](img_3.png)
-![img_4.png](img_4.png)
+![img_10.png](img_10.png)
+![img_11.png](img_11.png)
+![img_12.png](img_12.png)
+![img_13.png](img_13.png)
+
 ---
 ## ‍💻 팀원
 
-
-| FE          | FE                | BE      | DA&AI | MODELING | MODELING |
-|-------------|-------------------|---------|-------|----------|----------|
-| https://github.com/ziizero | https://github.com/chubin925  | https://github.com/hyo-lin | https://github.com/lyoonji      |  https://github.com/YEJUNfootcleaner        | https://github.com/imperial-girl |
+| FE | FE | BE | DA&AI | MODELING | MODELING |
+| :---: | :---: | :---: | :---: | :---: | :---: |
+| <img src="https://github.com/ziizero.png" width="100"><br>[@ziizero](https://github.com/ziizero) | <img src="https://github.com/chubin925.png" width="100"><br>[@chubin925](https://github.com/chubin925) | <img src="https://github.com/hyo-lin.png" width="100"><br>[@hyo-lin](https://github.com/hyo-lin) | <img src="https://github.com/lyoonji.png" width="100"><br>[@lyoonji](https://github.com/lyoonji) | <img src="https://github.com/YEJUNfootcleaner.png" width="100"><br>[@YEJUNfootcleaner](https://github.com/YEJUNfootcleaner) | <img src="https://github.com/imperial-girl.png" width="100"><br>[@imperial-girl](https://github.com/imperial-girl) |
 
 ---
 
@@ -33,7 +33,7 @@
 
 ## 🏗️ 아키텍쳐
 
-![img_7.png](img_7.png)
+![img_9.png](img_9.png)
 
 ---
 ## 🧩 주요 기술 스택
