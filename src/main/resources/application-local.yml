@@ -3,4 +3,72 @@ spring:
     activate:
       on-profile: "local"
 
+  datasource:
+    url: ${LOCAL_DB_URL}
+    username: ${LOCAL_DB_USER}
+    password: ${LOCAL_DB_PASSWORD}
 
+  jwt:
+    access:
+      expiration: ${JWT_EXPIRATION}
+    secret: ${JWT_SECRET_KEY}
+
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
+      password: ${REDIS_PASSWORD}
+      timeout: 2000
+
+  seoul:
+    openapi:
+      key: ${DOBONG_EVENT}
+    api:
+      base-url: ${URL_DOBONG_EVENT}
+
+  dobong:
+    api:
+      base-url: ${DOBONG_HERI}
+      api-key: ${API_KEY}
+      cont-code: ${CONT_CODE}
+
+  python:
+    url: ${PYTHON_URL}
+
+
+kakao:
+  rest-api-key: ${KAKAO_REST_API_KEY}
+  native-app-key: ${KAKAO_NATIVE_APP_KEY}
+  oidc:
+    issuer: https://kauth.kakao.com
+    jwks-uri: https://kauth.kakao.com/.well-known/jwks.json
+
+google:
+  client-id: ${GOOGLE_WEB_CLIENT_ID}
+  oidc:
+    issuer: https://accounts.google.com
+    jwks-uri: https://www.googleapis.com/oauth2/v3/certs
+  places:
+    api-key: ${GOOGLE_PLACES_API_KEY}   # 환경변수로 주입 권장
+    language: ko
+    region: KR
+
+aws:
+  region: ${AWS_REGION}
+  s3:
+    bucket: ${AWS_S3_BUCKET}         # 실제 버킷명
+    key-prefix: ${AWS_S3_KEY_PREFIX}             # 선택(없어도 됨)
+    presign-exp-minutes: 10
+  credentials:
+    access-key: ${AWS_ACCESS_KEY_ID}
+    secret-key: ${AWS_SECRET_ACCESS_KEY}
+app:
+  default-profile-image: ${AWS_IMAGE_DEFAULT}
+
+server:
+  port: 8080
+
+logging:
+  level:
+    root: INFO
+    org.hibernate.SQL: DEBUG
