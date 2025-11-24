@@ -13,6 +13,9 @@
 <img width="1017" height="570" alt="스크린샷 2025-11-23 201840" src="https://github.com/user-attachments/assets/8a2dede3-f65b-4eaa-bb7e-083cf5d9b146" />
 
 ---
+## 💡시연영상
+
+---
 ## ‍💻 팀원
 
 | FE | FE | BE | DA&AI | MODELING | MODELING |
