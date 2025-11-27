@@ -18,7 +18,7 @@
 ---
 ## ‍💻 팀원
 
-| FE | FE | BE | DA&AI | MODELING | MODELING |
+| FE | FE | BE | DA&AI | 3D Modeler | 3D Modeler |
 | :---: | :---: | :---: | :---: | :---: | :---: |
 | <img src="https://github.com/ziizero.png" width="100"><br>[@ziizero](https://github.com/ziizero) | <img src="https://github.com/chubin925.png" width="100"><br>[@chubin925](https://github.com/chubin925) | <img src="https://github.com/hyo-lin.png" width="100"><br>[@hyo-lin](https://github.com/hyo-lin) | <img src="https://github.com/lyoonji.png" width="100"><br>[@lyoonji](https://github.com/lyoonji) | <img src="https://github.com/YEJUNfootcleaner.png" width="100"><br>[@YEJUNfootcleaner](https://github.com/YEJUNfootcleaner) | <img src="https://github.com/imperial-girl.png" width="100"><br>[@imperial-girl](https://github.com/imperial-girl) |
 
